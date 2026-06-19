@@ -520,7 +520,9 @@ body {
 	display: flex;
 	flex-direction: column;
 	gap: var(--dc-card-gap, 8px);
-	padding: 8px 0 16px;
+	/* Generous bottom room so the LAST card's reply field can scroll up clear of the
+	   bottom edge / status bar, with space to grow as you type. */
+	padding: 8px 0 50vh;
 }
 /* The cards are the same component as the margin, just laid out in normal flow
    (the margin pins them with an absolute `top`; here they stack). */

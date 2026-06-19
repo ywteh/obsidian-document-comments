@@ -1,0 +1,22 @@
+# Changelog
+
+All notable changes to **Document Comments**. The release workflow uses the section
+matching the pushed tag as that GitHub release's notes, so add an entry here before tagging.
+
+## 0.1.3
+- Sidebar: the last comment's reply field is no longer cut off at the bottom — there's room to scroll it up clear of the status bar, with space to grow as you type.
+
+## 0.1.2
+- **Markdown in comments** — comment text now renders Markdown (code spans, bold, links, lists) in both the margin and the sidebar.
+- **Long comments** collapse to a "Show more" preview; one click opens the full thread *and* the reply box. A thread taller than the screen shows "Open in sidebar" instead (its bottom is unreachable inline).
+- **Margin polish** — cards slide off the top edge as you scroll instead of sticking; clicking a card no longer scrolls the document; the reply box reveals and focuses when you open a card; expand/collapse animates smoothly.
+- Comment highlights now render inside **tables** in Reading view. (Live Preview can't highlight inside its table widget — a documented limitation.)
+
+## 0.1.1
+- Addressed Obsidian community-plugin review feedback.
+- Removed every `:has()` and `!important` from the stylesheet (selectors are now scoped to out-specify Obsidian's core rules).
+- Replaced the `builtin-modules` build dependency with `node:module`.
+- Added a CI release workflow that builds the plugin and attaches **build-provenance attestations** to the release assets.
+
+## 0.1.0
+- Initial release — Notion/Linear-style margin comments stored inline in your markdown as HTML comments, with threads, reactions, resolve/reopen, a comments sidebar, and Reading-view support.

@@ -59,7 +59,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
+          # Use the matching section of CHANGELOG.md (everything under "## <tag>" up to
+          # the next "## ") as the release notes; fall back to a generic line.
+          notes="$(awk -v h="## $tag" '$0==h{f=1;next} /^## /{f=0} f' CHANGELOG.md)"
+          [ -z "$notes" ] && notes="Release $tag"
           gh release create "$tag" \
             --title "$tag" \
-            --notes "Release $tag" \
+            --notes "$notes" \
             main.js manifest.json styles.css

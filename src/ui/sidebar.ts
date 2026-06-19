@@ -151,12 +151,14 @@ export class CommentsSidebarView extends ItemView {
 		window.setTimeout(() => card.el.removeClass("dc-flash"), 1000);
 	}
 
-	/** Scroll the panel to reveal a just-opened reply composer. */
+	/** Scroll the panel to reveal a just-opened reply composer. Centers it (the bottom
+	 *  padding gives the last card room) so it isn't pinned at the cut-off bottom edge
+	 *  and has space to grow as you type. */
 	private revealComposer(id: string): void {
 		const card = this.cards.get(id);
 		if (!card) return;
 		window.requestAnimationFrame(() => {
-			card.el.querySelector(".dc-field--composer")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+			card.el.querySelector(".dc-field--composer")?.scrollIntoView({ block: "center", behavior: "smooth" });
 		});
 	}
 
