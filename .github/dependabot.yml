@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # npm build/test dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Wait 7 days after a release before opening an update PR (avoid churn on
+    # freshly-published versions that may get a quick follow-up patch).
+    cooldown:
+      default-days: 7
+
+  # GitHub Actions used by the CI + release workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
