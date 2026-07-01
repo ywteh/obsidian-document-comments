@@ -6,7 +6,7 @@ import { marginPlugin } from "./editor/margin";
 import { commentConfig } from "./editor/config";
 import { editorLayoutField } from "./editor/layout";
 import { draftField, setDraft } from "./editor/draft";
-import { addComment, insertCommentInFile } from "./editor/commands";
+import { addComment, insertCommentInFile, insertFileCommentInFile } from "./editor/commands";
 import { findSectionRange, highlightPostProcessor } from "./reading/highlight";
 import { ReadingDeps, ReadingMarginManager } from "./reading/margin";
 import { COMMENTS_VIEW_TYPE, CommentsSidebarView, SidebarDeps } from "./ui/sidebar";
@@ -122,6 +122,17 @@ export default class DocCommentsPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "add-comment-file",
+			name: "Add comment on whole file",
+			checkCallback: (checking) => {
+				const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+				if (!file) return false;
+				if (!checking) this.startAddFileComment(file);
+				return true;
+			},
+		});
+
+		this.addCommand({
 			id: "open-comments-sidebar",
 			name: "Open comments sidebar",
 			callback: () => void this.activateSidebar(),
@@ -137,13 +148,23 @@ export default class DocCommentsPlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.workspace.on("editor-menu", (menu, editor) => {
-				if (!editor.getSelection()) return;
+				// "Add comment" always applies now — a selection comments on that span,
+				// no selection comments on the current line (line scope).
 				menu.addItem((item) =>
 					item
-						.setTitle("Add comment")
+						.setTitle(editor.getSelection() ? "Add comment" : "Add comment on line")
 						.setIcon("message-square")
 						.onClick(() => this.startAddComment(editor)),
 				);
+				const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+				if (file) {
+					menu.addItem((item) =>
+						item
+							.setTitle("Comment on whole file")
+							.setIcon("message-square")
+							.onClick(() => this.startAddFileComment(file)),
+					);
+				}
 			}),
 		);
 
@@ -156,10 +177,17 @@ export default class DocCommentsPlugin extends Plugin {
 			new Notice("Couldn't access the editor.");
 			return;
 		}
-		const { from, to, empty } = view.state.selection.main;
-		if (empty) {
-			new Notice("Select some text to comment on.");
-			return;
+		let { from, to } = view.state.selection.main;
+		if (from === to) {
+			// No selection → comment on the current line (line scope). Trim the line's
+			// leading/trailing whitespace so the anchor wraps the meaningful text.
+			const line = view.state.doc.lineAt(from);
+			from = line.from + (line.text.length - line.text.trimStart().length);
+			to = line.to - (line.text.length - line.text.trimEnd().length);
+			if (from >= to) {
+				new Notice("This line is empty — nothing to comment on.");
+				return;
+			}
 		}
 		if (Platform.isMobile) {
 			// No floating margin composer on mobile — collect the text in a modal,
@@ -218,6 +246,22 @@ export default class DocCommentsPlugin extends Plugin {
 	private async insertReadingComment(file: TFile, from: number, to: number, text: string): Promise<void> {
 		(await insertCommentInFile(this.app, file, from, to, text, this.authorName())).match({
 			ok: () => this.scheduleReadingRefresh(),
+			err: (message) => new Notice(`Couldn't add the comment: ${message}`),
+		});
+	}
+
+	/** File-scope comment: no anchor span, so it's always composed in a dialog and
+	 *  written straight to the file. It surfaces in the "All discussions" sidebar
+	 *  (note-wide comments have no margin anchor to attach a floating card to). */
+	private startAddFileComment(file: TFile): void {
+		new CommentModal(this.app, file.basename, (text) => {
+			void this.insertFileComment(file, text);
+		}).open();
+	}
+
+	private async insertFileComment(file: TFile, text: string): Promise<void> {
+		(await insertFileCommentInFile(this.app, file, text, this.authorName())).match({
+			ok: () => this.refreshEditors(),
 			err: (message) => new Notice(`Couldn't add the comment: ${message}`),
 		});
 	}

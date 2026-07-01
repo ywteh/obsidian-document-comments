@@ -7,11 +7,13 @@ import { Card, CardCallbacks, cardSignature } from "../ui/card";
 import {
 	Change,
 	applyChanges,
+	computeAcceptSuggestion,
 	computeAddComment,
 	computeAppendReply,
 	computeDeleteComment,
 	computeDeleteEntry,
 	computeEditEntry,
+	computeRejectSuggestion,
 	computeSetResolved,
 	computeToggleReaction,
 } from "../editor/edits";
@@ -76,6 +78,14 @@ class ReadingMargin {
 			deleteEntry: (id, index) => void this.edit((doc) => computeDeleteEntry(doc, id, index)),
 			toggleReaction: (id, emoji) =>
 				void this.edit((doc) => computeToggleReaction(doc, id, emoji, deps.getAuthor())),
+			acceptSuggestion: (id, editId) =>
+				void this.edit((doc) =>
+					computeAcceptSuggestion(doc, id, editId, deps.getAuthor(), new Date().toISOString()),
+				),
+			rejectSuggestion: (id, editId) =>
+				void this.edit((doc) =>
+					computeRejectSuggestion(doc, id, editId, deps.getAuthor(), new Date().toISOString()),
+				),
 			openInSidebar: (id) => deps.openInSidebar?.(id),
 		};
 

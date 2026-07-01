@@ -1,6 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { parseComments, anchorRange, isAnchored, isOrphan, existingIds } from "../src/format/parse";
-import { serializeBody, openMarker, closeMarker } from "../src/format/serialize";
+import {
+	parseComments,
+	anchorRange,
+	isAnchored,
+	isOrphan,
+	existingIds,
+	editTextRange,
+	isEditAnchored,
+} from "../src/format/parse";
+import { serializeBody, openMarker, closeMarker, editOpenMarker, editCloseMarker } from "../src/format/serialize";
 import { generateId } from "../src/format/ids";
 import { CommentData } from "../src/format/types";
 
@@ -131,6 +139,100 @@ describe("serializeBody round-trip", () => {
 		const c = parseComments("<!--c:z1-->q<!--/c:z1-->\n" + body)[0];
 		expect(c.status).toBe("resolved");
 		expect(c.thread).toEqual(data.thread);
+	});
+});
+
+describe("edit suggestions", () => {
+	const WITH_EDITS = [
+		"We will " +
+			editOpenMarker("e1") +
+			"definitely" +
+			editCloseMarker("e1") +
+			" ship on " +
+			editOpenMarker("e2") +
+			"Friday" +
+			editCloseMarker("e2") +
+			" after review.",
+		"<!--co:k3f9 by:claude status:open",
+		"claude: Tighten this and fix the date.",
+		'~ @e1 was:"definitely" state:proposed -> ""',
+		'~ @e2 was:"Friday" state:proposed -> "Thursday"',
+		"-->",
+	].join("\n");
+
+	it("parses suggestion lines with state and was", () => {
+		const c = parseComments(WITH_EDITS)[0];
+		expect(c.suggestions).toHaveLength(2);
+		expect(c.suggestions[0]).toMatchObject({ editId: "e1", was: "definitely", state: "proposed", replacement: "" });
+		expect(c.suggestions[1]).toMatchObject({
+			editId: "e2",
+			was: "Friday",
+			state: "proposed",
+			replacement: "Thursday",
+		});
+	});
+
+	it("resolves each suggestion's edit-target range to the old text", () => {
+		const c = parseComments(WITH_EDITS)[0];
+		expect(isEditAnchored(c.suggestions[0])).toBe(true);
+		const r1 = editTextRange(c.suggestions[0])!;
+		expect(WITH_EDITS.slice(r1.from, r1.to)).toBe("definitely");
+		const r2 = editTextRange(c.suggestions[1])!;
+		expect(WITH_EDITS.slice(r2.from, r2.to)).toBe("Friday");
+	});
+
+	it("marks a suggestion whose e: markers are missing as not anchored", () => {
+		const doc = '<!--c:z1-->x<!--/c:z1-->\n<!--co:z1 status:open\n~ @gone state:proposed -> "new"\n-->';
+		const s = parseComments(doc)[0].suggestions[0];
+		expect(isEditAnchored(s)).toBe(false);
+		expect(editTextRange(s)).toBe(null);
+	});
+
+	it("defaults an unknown/absent state to proposed", () => {
+		const doc = '<!--co:z2 status:open\n~ @e9 -> "x"\n-->';
+		expect(parseComments(doc)[0].suggestions[0].state).toBe("proposed");
+	});
+
+	it("ignores e: markers inside fenced code blocks", () => {
+		const doc = [
+			"```markdown",
+			editOpenMarker("fake") + "example" + editCloseMarker("fake"),
+			"```",
+			"Real " + editOpenMarker("real") + "text" + editCloseMarker("real") + ".",
+			'<!--co:c1 status:open\n~ @real state:proposed -> "new"\n-->',
+		].join("\n");
+		const s = parseComments(doc)[0].suggestions[0];
+		expect(editTextRange(s)).not.toBe(null);
+		expect(doc.slice(editTextRange(s)!.from, editTextRange(s)!.to)).toBe("text");
+	});
+
+	it("round-trips suggestions and refs through serialize -> parse", () => {
+		const data: CommentData = {
+			author: "claude",
+			status: "open",
+			refs: ["[[Project X]]", "[[Note B]]"],
+			thread: [{ author: "claude", text: "see refs" }],
+			suggestions: [
+				{ editId: "e1", was: "old text", state: "accepted", replacement: "new text" },
+				{ editId: "e2", state: "rejected", replacement: "" },
+			],
+			reactions: [],
+		};
+		const doc =
+			editOpenMarker("e1") +
+			"old text" +
+			editCloseMarker("e1") +
+			" " +
+			editOpenMarker("e2") +
+			"y" +
+			editCloseMarker("e2") +
+			"\n" +
+			serializeBody("q1", data);
+		const c = parseComments(doc)[0];
+		expect(c.refs).toEqual(["[[Project X]]", "[[Note B]]"]);
+		expect(
+			c.suggestions.map((s) => ({ editId: s.editId, was: s.was, state: s.state, replacement: s.replacement })),
+		).toEqual(data.suggestions);
 	});
 });
 

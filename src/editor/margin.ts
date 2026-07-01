@@ -8,11 +8,13 @@ import { commentConfig } from "./config";
 import { clearDraft, draftField } from "./draft";
 import { Card, CardCallbacks, CardView, cardSignature } from "../ui/card";
 import {
+	acceptSuggestion,
 	addComment,
 	appendReply,
 	deleteComment,
 	deleteEntry,
 	editEntry,
+	rejectSuggestion,
 	setResolved,
 	toggleReaction,
 } from "./commands";
@@ -78,6 +80,8 @@ class MarginView implements PluginValue {
 			editEntry: (id, index, text) => notifyErr(editEntry(view, id, index, text)),
 			deleteEntry: (id, index) => notifyErr(deleteEntry(view, id, index)),
 			toggleReaction: (id, emoji) => notifyErr(toggleReaction(view, id, emoji, this.cb.getAuthor())),
+			acceptSuggestion: (id, editId) => notifyErr(acceptSuggestion(view, id, editId, this.cb.getAuthor())),
+			rejectSuggestion: (id, editId) => notifyErr(rejectSuggestion(view, id, editId, this.cb.getAuthor())),
 			openInSidebar: (id) => view.state.facet(commentConfig).openInSidebar?.(id),
 		};
 

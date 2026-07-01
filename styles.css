@@ -410,6 +410,68 @@ body {
 	background-color: var(--interactive-accent-hover);
 }
 
+/* ── Suggested edits (accept / reject) ─────────────────────────────────── */
+.dc-suggestions {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 10px;
+}
+.dc-suggestion {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-left: 2px solid var(--interactive-accent);
+	border-radius: var(--radius-s, 6px);
+	background-color: var(--background-secondary);
+}
+.dc-suggestion.is-orphan {
+	border-left-color: var(--background-modifier-border);
+	opacity: 0.75;
+}
+.dc-suggestion__diff {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 5px;
+	min-width: 0;
+	font-size: var(--font-smaller);
+	line-height: 1.4;
+}
+.dc-suggestion__old {
+	color: var(--text-muted);
+	text-decoration: line-through;
+	text-decoration-color: var(--text-faint);
+}
+.dc-suggestion__arrow {
+	color: var(--text-faint);
+}
+.dc-suggestion__new {
+	color: var(--text-normal);
+	font-weight: var(--font-medium, 500);
+}
+.dc-suggestion__del {
+	color: var(--text-muted);
+	font-style: italic;
+}
+.dc-suggestion__actions {
+	flex: 0 0 auto;
+	display: flex;
+	gap: 6px;
+}
+/* Slightly smaller than the composer's round buttons — these sit inside a row. */
+.dc-suggestion__actions .dc-round {
+	width: 22px;
+	height: 22px;
+}
+.dc-suggestion__actions .dc-round .svg-icon {
+	width: 13px;
+	height: 13px;
+}
+
 /* ── Emoji picker popover ──────────────────────────────────────────────── */
 .dc-pop {
 	position: fixed;

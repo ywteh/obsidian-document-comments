@@ -1,6 +1,6 @@
 import { App, Component, MarkdownRenderer, Menu, setIcon } from "obsidian";
 import { ParsedComment } from "../format/types";
-import { isAnchored } from "../format/parse";
+import { isAnchored, isEditAnchored } from "../format/parse";
 
 const QUICK_EMOJI = ["👍", "❤️", "😄", "🎉", "😮", "👀", "🙏"];
 
@@ -24,6 +24,10 @@ export type CardCallbacks = {
 	editEntry: (id: string, index: number, text: string) => void;
 	deleteEntry: (id: string, index: number) => void;
 	toggleReaction: (id: string, emoji: string) => void;
+	/** Apply a suggested edit (replace within its `e:` markers) and drop the `~` line. */
+	acceptSuggestion: (id: string, editId: string) => void;
+	/** Discard a suggested edit (unwrap its markers, prose untouched) and drop the `~` line. */
+	rejectSuggestion: (id: string, editId: string) => void;
 	/** Bring a just-opened reply composer fully into view (the margin scrolls the
 	 *  editor minimally; the sidebar scrolls its own list). */
 	revealComposer?: (id: string) => void;
@@ -161,6 +165,7 @@ export class Card {
 		const thread = clip.createDiv("dc-thread");
 		this.threadEl = thread;
 		c.thread.forEach((entry, i) => this.renderEntry(thread, entry, i));
+		if (c.suggestions.length > 0) this.renderSuggestions(clip);
 		if (this.open) this.renderComposer(clip);
 
 		this.footEl = this.el.createDiv("dc-card-foot");
@@ -290,6 +295,37 @@ export class Card {
 				e.stopPropagation();
 				this.cb.toggleReaction(this.id, r.emoji);
 			});
+		}
+	}
+
+	/** Render the accept/reject-able suggested edits as a list under the thread. */
+	private renderSuggestions(parent: HTMLElement): void {
+		const wrap = parent.createDiv("dc-suggestions");
+		for (const s of this.comment.suggestions) {
+			const anchored = isEditAnchored(s);
+			const row = wrap.createDiv("dc-suggestion");
+			row.toggleClass("is-orphan", !anchored);
+
+			const diff = row.createDiv("dc-suggestion__diff");
+			if (s.was) diff.createSpan({ cls: "dc-suggestion__old", text: s.was });
+			if (s.replacement === "") {
+				diff.createSpan({ cls: "dc-suggestion__del", text: s.was ? "(delete)" : "(empty)" });
+			} else {
+				if (s.was) diff.createSpan({ cls: "dc-suggestion__arrow", text: "→" });
+				diff.createSpan({ cls: "dc-suggestion__new", text: s.replacement });
+			}
+
+			const actions = row.createDiv("dc-suggestion__actions");
+			// Accept needs live markers to replace within; an orphaned suggestion can only
+			// be rejected (which just clears the stale `~` line).
+			if (anchored) {
+				this.roundButton(actions, "check", "Accept", "dc-round--confirm", () =>
+					this.cb.acceptSuggestion(this.id, s.editId),
+				);
+			}
+			this.roundButton(actions, "x", "Reject", "dc-round--cancel", () =>
+				this.cb.rejectSuggestion(this.id, s.editId),
+			);
 		}
 	}
 
@@ -432,9 +468,19 @@ export class Card {
 	}
 }
 
-/** Content signature, independent of document position — drives margin diffing. */
+/** Content signature, independent of document position — drives margin diffing.
+ *  Suggestions are included (with their anchored state) so accept/reject/state
+ *  changes actually repaint the card. */
 export const cardSignature = (c: ParsedComment): string => {
-	return JSON.stringify([c.status, c.author, c.createdAt, c.thread, c.reactions, isAnchored(c)]);
+	return JSON.stringify([
+		c.status,
+		c.author,
+		c.createdAt,
+		c.thread,
+		c.reactions,
+		isAnchored(c),
+		c.suggestions.map((s) => [s.editId, s.state, s.was, s.replacement, isEditAnchored(s)]),
+	]);
 };
 
 const autogrow = (ta: HTMLTextAreaElement): void => {

@@ -1,5 +1,5 @@
 import { Result } from "better-result";
-import { CommentData, ParsedComment, Reaction } from "../format/types";
+import { CommentData, ParsedComment, Reaction, ThreadEntry } from "../format/types";
 import { parseComments } from "../format/parse";
 import { closeMarker, openMarker, serializeBody } from "../format/serialize";
 
@@ -35,6 +35,7 @@ export const computeAddComment = (
 		status: "open",
 		quote,
 		thread: [{ author: input.author, timestamp: input.createdAt, text: input.text }],
+		suggestions: [],
 		reactions: [],
 	};
 	const paraEnd = blockEnd(doc, to);
@@ -43,6 +44,25 @@ export const computeAddComment = (
 		{ from: to, to, insert: closeMarker(input.id) },
 		{ from: paraEnd, to: paraEnd, insert: "\n" + serializeBody(input.id, data) },
 	]);
+};
+
+/** Add a note-wide comment: a body block with no anchor span, appended at the end
+ *  of the file (§5 file scope). It carries no `quote` — it's about the note as a
+ *  whole. Surgical edits still attach via standalone `e:` anchors placed elsewhere. */
+export const computeAddFileComment = (doc: string, input: NewCommentInput): Result<Change[], string> => {
+	if (!input.text.trim()) return Result.err("Comment text is empty.");
+	const data: CommentData = {
+		author: input.author,
+		createdAt: input.createdAt,
+		status: "open",
+		thread: [{ author: input.author, timestamp: input.createdAt, text: input.text }],
+		suggestions: [],
+		reactions: [],
+	};
+	const at = doc.length;
+	// Keep the body block on its own line, whatever the file's trailing state.
+	const lead = doc.length === 0 || doc.endsWith("\n") ? "" : "\n";
+	return Result.ok([{ from: at, to: at, insert: lead + serializeBody(input.id, data) + "\n" }]);
 };
 
 export const computeAppendReply = (
@@ -86,6 +106,75 @@ export const computeToggleReaction = (
 	return replaceBody(doc, id, (c) => ({ ...toData(c), reactions: toggleReactions(c.reactions, emoji, author) }));
 };
 
+/** Accept a suggestion: replace the text between its `e:` markers (and the markers
+ *  themselves) with the replacement, drop the `~` line, and log the decision to the
+ *  thread. Author/timestamp are injected so this stays pure. */
+export const computeAcceptSuggestion = (
+	doc: string,
+	id: string,
+	editId: string,
+	logAuthor: string,
+	loggedAt: string,
+): Result<Change[], string> => {
+	const c = parseComments(doc).find((x) => x.id === id);
+	if (!c) return Result.err("Comment not found.");
+	if (!c.body) return Result.err("Comment has no body to update.");
+	const s = c.suggestions.find((x) => x.editId === editId);
+	if (!s) return Result.err("Suggestion not found.");
+	if (!s.open || !s.close || s.open.to > s.close.from)
+		return Result.err("Suggestion has no anchored text to replace.");
+
+	const was = s.was ?? doc.slice(s.open.to, s.close.from);
+	const note: ThreadEntry = {
+		author: logAuthor,
+		timestamp: loggedAt,
+		text: `Accepted edit: ${editSummary(was, s.replacement)}`,
+	};
+	return Result.ok([
+		// One span: the old text plus both markers → the replacement (markers unwrapped).
+		{ from: s.open.from, to: s.close.to, insert: s.replacement },
+		{ from: c.body.from, to: c.body.to, insert: serializeBody(id, resolvedBody(c, editId, note)) },
+	]);
+};
+
+/** Reject a suggestion: unwrap its `e:` markers (prose untouched), drop the `~` line,
+ *  and log the decision. Tolerates a missing/half marker pair (cleans up the record). */
+export const computeRejectSuggestion = (
+	doc: string,
+	id: string,
+	editId: string,
+	logAuthor: string,
+	loggedAt: string,
+): Result<Change[], string> => {
+	const c = parseComments(doc).find((x) => x.id === id);
+	if (!c) return Result.err("Comment not found.");
+	if (!c.body) return Result.err("Comment has no body to update.");
+	const s = c.suggestions.find((x) => x.editId === editId);
+	if (!s) return Result.err("Suggestion not found.");
+
+	const was = s.was ?? (s.open && s.close ? doc.slice(s.open.to, s.close.from) : "");
+	const note: ThreadEntry = {
+		author: logAuthor,
+		timestamp: loggedAt,
+		text: `Rejected edit: ${editSummary(was, s.replacement)}`,
+	};
+	const changes: Change[] = [];
+	if (s.open) changes.push({ from: s.open.from, to: s.open.to, insert: "" });
+	if (s.close) changes.push({ from: s.close.from, to: s.close.to, insert: "" });
+	changes.push({ from: c.body.from, to: c.body.to, insert: serializeBody(id, resolvedBody(c, editId, note)) });
+	return Result.ok(changes);
+};
+
+/** The comment's body with `editId`'s suggestion removed and `note` appended to the thread. */
+const resolvedBody = (c: ParsedComment, editId: string, note: ThreadEntry): CommentData => ({
+	...toData(c),
+	thread: [...c.thread, note],
+	suggestions: c.suggestions.filter((s) => s.editId !== editId),
+});
+
+const editSummary = (was: string, replacement: string): string =>
+	replacement === "" ? `delete “${was}”` : `“${was}” → “${replacement}”`;
+
 const replaceBody = (doc: string, id: string, mutate: (c: ParsedComment) => CommentData): Result<Change[], string> => {
 	const c = parseComments(doc).find((x) => x.id === id);
 	if (!c) return Result.err("Comment not found.");
@@ -99,7 +188,9 @@ const toData = (c: ParsedComment): CommentData => {
 		createdAt: c.createdAt,
 		status: c.status,
 		quote: c.quote,
+		refs: c.refs,
 		thread: c.thread,
+		suggestions: c.suggestions,
 		reactions: c.reactions,
 	};
 };

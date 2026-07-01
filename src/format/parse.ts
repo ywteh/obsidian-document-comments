@@ -1,14 +1,29 @@
-import { CommentData, CommentStatus, ParsedComment, Reaction, TextRange, ThreadEntry } from "./types";
+import {
+	CommentData,
+	CommentStatus,
+	ParsedComment,
+	ParsedSuggestion,
+	Reaction,
+	Suggestion,
+	SuggestionState,
+	TextRange,
+	ThreadEntry,
+} from "./types";
 
 // Anchor + body markers. All are HTML comments so they're invisible everywhere.
 const OPEN_RE = /<!--c:([A-Za-z0-9]+)-->/g;
 const CLOSE_RE = /<!--\/c:([A-Za-z0-9]+)-->/g;
+// Edit-target markers: drift-proof anchors delimiting the prose a suggestion replaces.
+const EDIT_OPEN_RE = /<!--e:([A-Za-z0-9]+)-->/g;
+const EDIT_CLOSE_RE = /<!--\/e:([A-Za-z0-9]+)-->/g;
 // <!--co:ID <header, rest of first line>\n <thread...> -->
 const BODY_RE = /<!--co:([A-Za-z0-9]+)[ \t]*([^\n]*)\n?([\s\S]*?)-->/g;
 
 const HEADER_ATTR_RE = /(\w+):(?:"([^"]*)"|(\S+))/g;
 // author, optional "(timestamp)", then ": text"
 const THREAD_LINE_RE = /^(.*?)(?:\s\(([^)]*)\))?:\s?([\s\S]*)$/;
+// ~ @editId <was:"…" state:…> -> "new text"
+const SUGGESTION_LINE_RE = /^~\s*@(\S+)\s*(.*?)\s*->\s*"([\s\S]*)"\s*$/;
 
 /** Parse every comment in a document, in order of first appearance. */
 export const parseComments = (doc: string): ParsedComment[] => {
@@ -17,6 +32,8 @@ export const parseComments = (doc: string): ParsedComment[] => {
 
 	const opens = new Map<string, TextRange>();
 	const closes = new Map<string, TextRange>();
+	const editOpens = new Map<string, TextRange>();
+	const editCloses = new Map<string, TextRange>();
 	const bodies = new Map<string, { range: TextRange; data: CommentData }>();
 	const order: string[] = [];
 	const seen = new Set<string>();
@@ -43,15 +60,30 @@ export const parseComments = (doc: string): ParsedComment[] => {
 		track(m[1]);
 	}
 
+	// Edit-target anchors are keyed by their own editId (not a comment id) and may
+	// stand alone anywhere; a suggestion's `~ @editId` line binds them to a comment.
+	EDIT_OPEN_RE.lastIndex = 0;
+	while ((m = EDIT_OPEN_RE.exec(doc))) {
+		if (masked(m.index)) continue;
+		if (!editOpens.has(m[1])) editOpens.set(m[1], { from: m.index, to: m.index + m[0].length });
+	}
+
+	EDIT_CLOSE_RE.lastIndex = 0;
+	while ((m = EDIT_CLOSE_RE.exec(doc))) {
+		if (masked(m.index)) continue;
+		if (!editCloses.has(m[1])) editCloses.set(m[1], { from: m.index, to: m.index + m[0].length });
+	}
+
 	BODY_RE.lastIndex = 0;
 	while ((m = BODY_RE.exec(doc))) {
 		if (masked(m.index)) continue;
 		const id = m[1];
 		if (!bodies.has(id)) {
-			const { thread, reactions } = parseBody(m[3] ?? "");
+			const { thread, suggestions, reactions } = parseBody(m[3] ?? "");
 			const data: CommentData = {
 				...parseHeader(m[2] ?? ""),
 				thread,
+				suggestions,
 				reactions,
 			};
 			bodies.set(id, { range: { from: m.index, to: m.index + m[0].length }, data });
@@ -59,17 +91,25 @@ export const parseComments = (doc: string): ParsedComment[] => {
 		track(id);
 	}
 
+	const resolveSuggestion = (s: Suggestion): ParsedSuggestion => ({
+		...s,
+		open: editOpens.get(s.editId) ?? null,
+		close: editCloses.get(s.editId) ?? null,
+	});
+
 	const result: ParsedComment[] = [];
 	for (const id of order) {
 		const body = bodies.get(id);
-		const data: CommentData = body ? body.data : { status: "open", thread: [], reactions: [] };
+		const data: CommentData = body ? body.data : { status: "open", thread: [], suggestions: [], reactions: [] };
 		result.push({
 			id,
 			author: data.author,
 			createdAt: data.createdAt,
 			status: data.status,
 			quote: data.quote,
+			refs: data.refs,
 			thread: data.thread,
+			suggestions: data.suggestions.map(resolveSuggestion),
 			reactions: data.reactions,
 			open: opens.get(id) ?? null,
 			close: closes.get(id) ?? null,
@@ -97,7 +137,17 @@ export const isOrphan = (c: ParsedComment): boolean => {
 	return !!c.body && !isAnchored(c);
 };
 
-const parseHeader = (header: string): Omit<CommentData, "thread" | "reactions"> => {
+/** A suggestion is anchored when both `e:` markers are present and ordered. */
+export const isEditAnchored = (s: ParsedSuggestion): boolean => {
+	return !!s.open && !!s.close && s.open.to <= s.close.from;
+};
+
+/** The text range an accepted suggestion replaces (between its `e:` markers), or null. */
+export const editTextRange = (s: ParsedSuggestion): TextRange | null => {
+	return isEditAnchored(s) ? { from: s.open!.to, to: s.close!.from } : null;
+};
+
+const parseHeader = (header: string): Omit<CommentData, "thread" | "suggestions" | "reactions"> => {
 	const attrs: Record<string, string> = {};
 	let m: RegExpExecArray | null;
 	HEADER_ATTR_RE.lastIndex = 0;
@@ -105,11 +155,18 @@ const parseHeader = (header: string): Omit<CommentData, "thread" | "reactions"> 
 		attrs[m[1]] = m[2] !== undefined ? m[2] : m[3];
 	}
 	const status: CommentStatus = attrs.status === "resolved" ? "resolved" : "open";
+	const refs = attrs.refs
+		? attrs.refs
+				.split(",")
+				.map((r) => r.trim())
+				.filter(Boolean)
+		: undefined;
 	return {
 		author: attrs.by,
 		createdAt: attrs.at,
 		status,
 		quote: attrs.quote,
+		refs: refs && refs.length ? refs : undefined,
 	};
 };
 
@@ -152,12 +209,19 @@ const isInside = (ranges: Array<[number, number]>, index: number): boolean => {
 
 const REACTION_LINE_RE = /^\+\s*(\S+)\s+(.+)$/;
 
-const parseBody = (block: string): { thread: ThreadEntry[]; reactions: Reaction[] } => {
+const parseBody = (block: string): { thread: ThreadEntry[]; suggestions: Suggestion[]; reactions: Reaction[] } => {
 	const thread: ThreadEntry[] = [];
+	const suggestions: Suggestion[] = [];
 	const reactions: Reaction[] = [];
 	for (const raw of block.split("\n")) {
 		const line = raw.replace(/\s+$/, "");
 		if (line.trim() === "") continue;
+
+		const sx = SUGGESTION_LINE_RE.exec(line);
+		if (sx) {
+			suggestions.push(parseSuggestion(sx[1], sx[2] ?? "", sx[3] ?? ""));
+			continue;
+		}
 
 		const rx = REACTION_LINE_RE.exec(line);
 		if (rx) {
@@ -179,5 +243,17 @@ const parseBody = (block: string): { thread: ThreadEntry[]; reactions: Reaction[
 			thread.push({ author: "", text: line });
 		}
 	}
-	return { thread, reactions };
+	return { thread, suggestions, reactions };
+};
+
+const parseSuggestion = (editId: string, attrsPart: string, replacement: string): Suggestion => {
+	const attrs: Record<string, string> = {};
+	let m: RegExpExecArray | null;
+	HEADER_ATTR_RE.lastIndex = 0;
+	while ((m = HEADER_ATTR_RE.exec(attrsPart))) {
+		attrs[m[1]] = m[2] !== undefined ? m[2] : m[3];
+	}
+	const state: SuggestionState =
+		attrs.state === "accepted" ? "accepted" : attrs.state === "rejected" ? "rejected" : "proposed";
+	return { editId, was: attrs.was, state, replacement };
 };
