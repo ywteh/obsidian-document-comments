@@ -1,4 +1,4 @@
-import { Editor, MarkdownView, Notice, Platform, Plugin, TFile, WorkspaceLeaf, debounce } from "obsidian";
+import { Editor, MarkdownView, Menu, Notice, Platform, Plugin, TFile, WorkspaceLeaf, debounce } from "obsidian";
 import { Result } from "better-result";
 import { EditorView } from "@codemirror/view";
 import { commentField } from "./editor/state";
@@ -170,21 +170,26 @@ export default class DocCommentsPlugin extends Plugin {
 						.setIcon("message-square")
 						.onClick(() => this.startAddComment(editor, "line")),
 				);
-				// A note-wide comment is conceptually about the title, so only offer it
-				// when the cursor is on the title line.
-				if (this.cursorInTitle(editor)) {
-					const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
-					if (file) {
-						menu.addItem((item) =>
-							item
-								.setTitle("Comment on whole file")
-								.setIcon("message-square")
-								.onClick(() => this.startAddFileComment(file)),
-						);
-					}
-				}
 			}),
 		);
+
+		// A note-wide comment is conceptually about the title, so offer it by
+		// right-clicking the note's inline title. The inline title isn't part of the
+		// editor surface (no editor-menu event), so hook its context menu directly.
+		this.registerDomEvent(document, "contextmenu", (e) => {
+			if (!(e.target as HTMLElement).closest(".inline-title")) return;
+			const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+			if (!file) return;
+			e.preventDefault();
+			const menu = new Menu();
+			menu.addItem((item) =>
+				item
+					.setTitle("Comment on whole file")
+					.setIcon("message-square")
+					.onClick(() => this.startAddFileComment(file)),
+			);
+			menu.showAtMouseEvent(e);
+		});
 
 		this.addSettingTab(new DocCommentsSettingTab(this.app, this));
 	}
@@ -222,20 +227,6 @@ export default class DocCommentsPlugin extends Plugin {
 		}
 		// Show a draft composer card in the margin (Notion-style) instead of a modal.
 		view.dispatch({ effects: setDraft.of({ from, to }) });
-	}
-
-	/** True when the cursor sits on the note's title — the first non-blank line, when
-	 *  that line is a Markdown heading. Gates the "Comment on whole file" menu item so a
-	 *  note-wide comment is offered from the title. (Obsidian's inline title — the
-	 *  filename above the body — isn't part of the editor surface, so we key on the H1.) */
-	private cursorInTitle(editor: Editor): boolean {
-		const cursorLine = editor.getCursor("head").line;
-		for (let i = 0; i < editor.lineCount(); i++) {
-			const text = editor.getLine(i);
-			if (text.trim() === "") continue;
-			return /^#{1,6}\s/.test(text) && i === cursorLine;
-		}
-		return false;
 	}
 
 	/** Reading view has no editor surface, so map the rendered selection back to
