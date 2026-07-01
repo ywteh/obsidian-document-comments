@@ -236,6 +236,31 @@ describe("edit suggestions", () => {
 	});
 });
 
+describe("suggestion staleness", () => {
+	const withEdit = (marked: string, was: string) =>
+		editOpenMarker("e1") +
+		marked +
+		editCloseMarker("e1") +
+		`\n<!--co:c1 status:open\n~ @e1 was:"${was}" state:proposed -> "x"\n-->`;
+
+	it("is not stale when the anchored text still matches was:", () => {
+		expect(parseComments(withEdit("Friday", "Friday"))[0].suggestions[0].stale).toBe(false);
+	});
+
+	it("flags stale when the prose between the markers has changed", () => {
+		expect(parseComments(withEdit("Monday", "Friday"))[0].suggestions[0].stale).toBe(true);
+	});
+
+	it("ignores cosmetic whitespace differences", () => {
+		expect(parseComments(withEdit("ship   on  Friday", "ship on Friday"))[0].suggestions[0].stale).toBe(false);
+	});
+
+	it("is not stale when there are no markers to compare against", () => {
+		const doc = '<!--co:c1 status:open\n~ @gone was:"Friday" state:proposed -> "x"\n-->';
+		expect(parseComments(doc)[0].suggestions[0].stale).toBe(false);
+	});
+});
+
 describe("generateId", () => {
 	it("avoids collisions with existing ids", () => {
 		const existing = new Set(["a", "b", "c"]);

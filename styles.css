@@ -451,6 +451,7 @@ body {
 }
 .dc-suggestion {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
 	gap: 8px;
@@ -463,6 +464,16 @@ body {
 .dc-suggestion.is-orphan {
 	border-left-color: var(--background-modifier-border);
 	opacity: 0.75;
+}
+/* The prose changed under this suggestion — warn, don't block (accept still works). */
+.dc-suggestion.is-stale {
+	border-left-color: var(--text-warning, hsl(40, 90%, 50%));
+}
+.dc-suggestion__stale {
+	flex-basis: 100%;
+	order: -1;
+	font-size: var(--font-smaller);
+	color: var(--text-warning, hsl(40, 80%, 45%));
 }
 .dc-suggestion__diff {
 	display: flex;

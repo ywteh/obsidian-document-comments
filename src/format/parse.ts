@@ -91,11 +91,15 @@ export const parseComments = (doc: string): ParsedComment[] => {
 		track(id);
 	}
 
-	const resolveSuggestion = (s: Suggestion): ParsedSuggestion => ({
-		...s,
-		open: editOpens.get(s.editId) ?? null,
-		close: editCloses.get(s.editId) ?? null,
-	});
+	const resolveSuggestion = (s: Suggestion): ParsedSuggestion => {
+		const open = editOpens.get(s.editId) ?? null;
+		const close = editCloses.get(s.editId) ?? null;
+		let stale = false;
+		if (open && close && open.to <= close.from && s.was !== undefined) {
+			stale = normalizeQuote(doc.slice(open.to, close.from)) !== normalizeQuote(s.was);
+		}
+		return { ...s, open, close, stale };
+	};
 
 	const result: ParsedComment[] = [];
 	for (const id of order) {
@@ -245,6 +249,11 @@ const parseBody = (block: string): { thread: ThreadEntry[]; suggestions: Suggest
 	}
 	return { thread, suggestions, reactions };
 };
+
+// Compare anchored text to `was:` the same way it was written (serialize.ts
+// sanitizeQuote): collapse whitespace, straighten quotes, trim. Avoids false
+// "stale" flags from cosmetic whitespace/quote differences.
+const normalizeQuote = (s: string): string => s.replace(/\s+/g, " ").replace(/"/g, "'").trim();
 
 const parseSuggestion = (editId: string, attrsPart: string, replacement: string): Suggestion => {
 	const attrs: Record<string, string> = {};

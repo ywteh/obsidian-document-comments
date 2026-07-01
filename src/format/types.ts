@@ -44,6 +44,10 @@ export type ParsedSuggestion = Suggestion & {
 	open: TextRange | null;
 	/** `<!--/e:editId-->` marker range, or null if missing. */
 	close: TextRange | null;
+	/** True when the text now between the markers no longer matches `was:` — someone
+	 *  edited the prose since the suggestion was made. A hint only: accepting still
+	 *  replaces whatever currently sits between the markers. */
+	stale: boolean;
 };
 
 export type TextRange = {

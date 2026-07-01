@@ -322,6 +322,16 @@ export class Card {
 			const anchored = isEditAnchored(s);
 			const row = wrap.createDiv("dc-suggestion");
 			row.toggleClass("is-orphan", !anchored);
+			row.toggleClass("is-stale", s.stale);
+
+			// The prose moved under this suggestion since it was made — accepting still
+			// replaces whatever's between the markers, so warn rather than block.
+			if (s.stale) {
+				row.createDiv({
+					cls: "dc-suggestion__stale",
+					text: "⚠ text changed since this was suggested",
+				});
+			}
 
 			const diff = row.createDiv("dc-suggestion__diff");
 			if (s.was) diff.createSpan({ cls: "dc-suggestion__old", text: s.was });
@@ -496,7 +506,7 @@ export const cardSignature = (c: ParsedComment): string => {
 		c.thread,
 		c.reactions,
 		isAnchored(c),
-		c.suggestions.map((s) => [s.editId, s.state, s.was, s.replacement, isEditAnchored(s)]),
+		c.suggestions.map((s) => [s.editId, s.state, s.was, s.replacement, isEditAnchored(s), s.stale]),
 	]);
 };
 

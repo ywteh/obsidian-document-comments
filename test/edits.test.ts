@@ -167,6 +167,25 @@ describe("accept / reject suggestion", () => {
 		});
 	});
 
+	it("refreshes the quote: snapshot when accepting an edit inside a c: anchor", () => {
+		const doc =
+			"Ship on <!--c:c1--><!--e:x1-->Friday<!--/e:x1--><!--/c:c1-->.\n" +
+			serializeBody("c1", {
+				status: "open",
+				quote: "Friday",
+				thread: [{ author: "claude", text: "fix the day" }],
+				suggestions: [{ editId: "x1", was: "Friday", state: "proposed", replacement: "Thursday" }],
+				reactions: [],
+			});
+		const out = applyChanges(
+			doc,
+			computeAcceptSuggestion(doc, "c1", "x1", "me", "2026-07-01T00:00:00.000Z").unwrap(),
+		);
+		expect(out).toContain("Ship on <!--c:c1-->Thursday<!--/c:c1-->."); // e: markers gone, c: anchor stays
+		expect(out).not.toContain(editOpenMarker("x1"));
+		expect(parseComments(out)[0].quote).toBe("Thursday"); // stale "Friday" snapshot refreshed
+	});
+
 	it("accepts a deletion: removes the anchored text", () => {
 		const out = accept(EDIT_DOC, "e1");
 		expect(out).toContain("We will  ship on"); // "definitely" gone (double space)

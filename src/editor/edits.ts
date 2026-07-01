@@ -130,10 +130,18 @@ export const computeAcceptSuggestion = (
 		timestamp: loggedAt,
 		text: `Accepted edit: ${editSummary(was, s.replacement)}`,
 	};
+	// Accepting changes the anchored text, so refresh the redundant `quote:` snapshot
+	// from the post-accept anchor (markers stripped, in case another edit still nests).
+	const body = resolvedBody(c, editId, note);
+	if (c.open && c.close && c.open.to <= c.close.from) {
+		const anchored = doc.slice(c.open.to, s.open.from) + s.replacement + doc.slice(s.close.to, c.close.from);
+		const quote = anchored.replace(/<!--\/?[ce]:[A-Za-z0-9]+-->/g, "").trim();
+		body.quote = quote || undefined;
+	}
 	return Result.ok([
 		// One span: the old text plus both markers → the replacement (markers unwrapped).
 		{ from: s.open.from, to: s.close.to, insert: s.replacement },
-		{ from: c.body.from, to: c.body.to, insert: serializeBody(id, resolvedBody(c, editId, note)) },
+		{ from: c.body.from, to: c.body.to, insert: serializeBody(id, body) },
 	]);
 };
 
