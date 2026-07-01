@@ -2,7 +2,7 @@ import { App, Debouncer, ItemView, MarkdownView, Notice, TFile, WorkspaceLeaf, d
 import { Result } from "better-result";
 import { EditorView } from "@codemirror/view";
 import { ParsedComment } from "../format/types";
-import { anchorRange, parseComments } from "../format/parse";
+import { anchorRange, isAnchored, parseComments } from "../format/parse";
 import { Card, CardCallbacks, cardSignature } from "./card";
 import {
 	Change,
@@ -51,6 +51,9 @@ export class CommentsSidebarView extends ItemView {
 	private scheduleRefresh: Debouncer<[], void>;
 	private filter: FilterMode = "open";
 	private tabs: Array<{ mode: FilterMode; el: HTMLElement; countEl: HTMLElement }> = [];
+	/** Ids of file-level comments (no anchor span) — their thread flares the note
+	 *  title instead of an in-text highlight. Recomputed each refresh. */
+	private fileLevelIds = new Set<string>();
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -203,6 +206,7 @@ export class CommentsSidebarView extends ItemView {
 		}
 
 		const all = parseComments(data).filter((c) => c.body);
+		this.fileLevelIds = new Set(all.filter((c) => !isAnchored(c)).map((c) => c.id));
 		const open = all.filter((c) => c.status !== "resolved");
 		const resolved = all.filter((c) => c.status === "resolved");
 		const shown = this.filter === "open" ? open : this.filter === "resolved" ? resolved : all;
@@ -306,6 +310,15 @@ export class CommentsSidebarView extends ItemView {
 		if (!file) return;
 		const view = this.markdownViewForFile(file);
 		if (!view) return;
+		// File-level comments have no in-text anchor — flare the note title instead.
+		if (this.fileLevelIds.has(id)) {
+			const title = view.containerEl.querySelector(".inline-title");
+			if (title instanceof HTMLElement) {
+				title.scrollIntoView({ block: "center", behavior: "smooth" });
+				this.flash(title);
+			}
+			return;
+		}
 		if (view.getMode() === "preview") {
 			const span = view.containerEl.querySelector(`.doc-comment-span[data-cid="${cssEscape(id)}"]`);
 			if (span instanceof HTMLElement) {
@@ -333,6 +346,10 @@ export class CommentsSidebarView extends ItemView {
 		if (!file) return;
 		const view = this.markdownViewForFile(file);
 		if (!view) return;
+		if (this.fileLevelIds.has(id)) {
+			view.containerEl.querySelectorAll(".inline-title").forEach((t) => t.classList.toggle("is-active", active));
+			return;
+		}
 		view.containerEl
 			.querySelectorAll(`.doc-comment-span[data-cid="${cssEscape(id)}"]`)
 			.forEach((s) => s.classList.toggle("is-active", active));

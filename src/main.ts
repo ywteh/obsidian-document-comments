@@ -175,11 +175,14 @@ export default class DocCommentsPlugin extends Plugin {
 
 		// A note-wide comment is conceptually about the title, so offer it by
 		// right-clicking the note's inline title. The inline title isn't part of the
-		// editor surface (no editor-menu event), so hook its context menu directly.
+		// editor surface (no editor-menu event), so hook its context menu directly —
+		// putting our item on top and letting Obsidian + other plugins fill in the
+		// usual file options (rename, delete, open in new tab, …) below it.
 		this.registerDomEvent(document, "contextmenu", (e) => {
 			if (!(e.target as HTMLElement).closest(".inline-title")) return;
-			const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
-			if (!file) return;
+			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (!view?.file) return;
+			const file = view.file;
 			e.preventDefault();
 			const menu = new Menu();
 			menu.addItem((item) =>
@@ -188,6 +191,8 @@ export default class DocCommentsPlugin extends Plugin {
 					.setIcon("message-square")
 					.onClick(() => this.startAddFileComment(file)),
 			);
+			menu.addSeparator();
+			this.app.workspace.trigger("file-menu", menu, file, "inline-title", view.leaf);
 			menu.showAtMouseEvent(e);
 		});
 

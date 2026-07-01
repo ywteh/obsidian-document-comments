@@ -116,6 +116,17 @@ body {
 	0%, 100% { background-color: var(--dc-highlight-bg); }
 	30% { background-color: var(--dc-highlight-bg-active); }
 }
+/* File-level comments have no in-text anchor, so flaring their thread lights up the
+   note's inline title instead — the whole-file "anchor". */
+.inline-title.is-active {
+	background-color: var(--dc-highlight-bg-active);
+	border-radius: 4px;
+}
+.inline-title.dc-flash {
+	animation: dc-flash 900ms ease;
+	border-radius: 4px;
+}
+
 .doc-comment-card.dc-flash {
 	animation: dc-card-flash 1000ms ease;
 }
