@@ -330,8 +330,9 @@ class MarginView implements PluginValue {
 	}
 
 	private markHighlight(id: string, active: boolean): void {
-		const spans = this.view.contentDOM.querySelectorAll(`.doc-comment-span[data-cid="${cssEscape(id)}"]`);
-		spans.forEach((s) => s.classList.toggle("is-active", active));
+		const cid = cssEscape(id);
+		const sel = `.doc-comment-span[data-cid="${cid}"], .doc-comment-edit-span[data-cid="${cid}"]`;
+		this.view.contentDOM.querySelectorAll(sel).forEach((s) => s.classList.toggle("is-active", active));
 	}
 
 	/** Clicking a margin card flashes its highlighted text. No document scroll: the

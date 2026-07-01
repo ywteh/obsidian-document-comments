@@ -9,6 +9,11 @@ body {
 	--dc-highlight-bg: hsla(45, 90%, 50%, 0.18);
 	--dc-highlight-bg-active: hsla(45, 90%, 50%, 0.38);
 	--dc-highlight-border: hsla(45, 90%, 45%, 0.7);
+	/* Suggested-edit targets — a cooler hue so they read as distinct from the amber
+	   comment highlight they usually nest inside. */
+	--dc-edit-bg: hsla(210, 90%, 56%, 0.13);
+	--dc-edit-bg-active: hsla(210, 90%, 56%, 0.30);
+	--dc-edit-border: hsla(210, 85%, 55%, 0.85);
 }
 
 /* Layout is keyed on a `dc-has` class set on the editor / reading-view container.
@@ -79,6 +84,33 @@ body {
 }
 .doc-comment-span.dc-flash {
 	animation: dc-flash 900ms ease;
+}
+
+/* Suggested-edit target: a distinct sub-highlight over the exact text a pending
+   edit would change (Live Preview / Source). Usually nests inside the anchor span,
+   so it's a dashed underline in a cooler hue; it brightens with its parent card. */
+.doc-comment-edit-span {
+	border-bottom: 2px dashed var(--dc-edit-border);
+	border-radius: 2px;
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+.doc-comment-edit-span.is-active {
+	background-color: var(--dc-edit-bg-active);
+}
+/* Hovering the text itself lights the whole thread's edit targets (matches the
+   card-hover path, which toggles .is-active on these spans). */
+.doc-comment-edit-span:hover {
+	background-color: var(--dc-edit-bg);
+}
+/* Follow the master toggle and the hide-resolved toggle, same as the anchor span. */
+.cm-editor:not(.dc-highlights) .doc-comment-edit-span,
+.markdown-reading-view:not(.dc-highlights) .doc-comment-edit-span,
+.cm-editor.dc-hide-resolved .doc-comment-edit-span.is-resolved,
+.markdown-reading-view.dc-hide-resolved .doc-comment-edit-span.is-resolved {
+	background-color: transparent;
+	border-bottom-color: transparent;
+	cursor: text;
 }
 @keyframes dc-flash {
 	0%, 100% { background-color: var(--dc-highlight-bg); }
