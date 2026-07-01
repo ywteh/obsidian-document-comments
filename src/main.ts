@@ -95,7 +95,13 @@ export default class DocCommentsPlugin extends Plugin {
 		this.addCommand({
 			id: "add-comment",
 			name: "Add comment on selection",
-			editorCallback: (editor) => this.startAddComment(editor),
+			editorCallback: (editor) => this.startAddComment(editor, "selection"),
+		});
+
+		this.addCommand({
+			id: "add-comment-line",
+			name: "Add comment on current line",
+			editorCallback: (editor) => this.startAddComment(editor, "line"),
 		});
 
 		this.addCommand({
@@ -148,22 +154,34 @@ export default class DocCommentsPlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.workspace.on("editor-menu", (menu, editor) => {
-				// "Add comment" always applies now — a selection comments on that span,
-				// no selection comments on the current line (line scope).
-				menu.addItem((item) =>
-					item
-						.setTitle(editor.getSelection() ? "Add comment" : "Add comment on line")
-						.setIcon("message-square")
-						.onClick(() => this.startAddComment(editor)),
-				);
-				const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
-				if (file) {
+				// Right-click selects the word under the cursor, so offer both scopes
+				// explicitly: comment on that selection, or on the whole line.
+				if (editor.getSelection()) {
 					menu.addItem((item) =>
 						item
-							.setTitle("Comment on whole file")
+							.setTitle("Comment on selection")
 							.setIcon("message-square")
-							.onClick(() => this.startAddFileComment(file)),
+							.onClick(() => this.startAddComment(editor, "selection")),
 					);
+				}
+				menu.addItem((item) =>
+					item
+						.setTitle("Comment on line")
+						.setIcon("message-square")
+						.onClick(() => this.startAddComment(editor, "line")),
+				);
+				// A note-wide comment is conceptually about the title, so only offer it
+				// when the cursor is on the title line.
+				if (this.cursorInTitle(editor)) {
+					const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+					if (file) {
+						menu.addItem((item) =>
+							item
+								.setTitle("Comment on whole file")
+								.setIcon("message-square")
+								.onClick(() => this.startAddFileComment(file)),
+						);
+					}
 				}
 			}),
 		);
@@ -171,23 +189,26 @@ export default class DocCommentsPlugin extends Plugin {
 		this.addSettingTab(new DocCommentsSettingTab(this.app, this));
 	}
 
-	private startAddComment(editor: Editor): void {
+	private startAddComment(editor: Editor, scope: "selection" | "line"): void {
 		const view = editorView(editor);
 		if (!view) {
 			new Notice("Couldn't access the editor.");
 			return;
 		}
 		let { from, to } = view.state.selection.main;
-		if (from === to) {
-			// No selection → comment on the current line (line scope). Trim the line's
-			// leading/trailing whitespace so the anchor wraps the meaningful text.
-			const line = view.state.doc.lineAt(from);
+		if (scope === "line") {
+			// Comment on the whole line the cursor sits on. Trim its leading/trailing
+			// whitespace so the anchor wraps the meaningful text.
+			const line = view.state.doc.lineAt(view.state.selection.main.head);
 			from = line.from + (line.text.length - line.text.trimStart().length);
 			to = line.to - (line.text.length - line.text.trimEnd().length);
 			if (from >= to) {
 				new Notice("This line is empty — nothing to comment on.");
 				return;
 			}
+		} else if (from === to) {
+			new Notice("Select some text to comment on.");
+			return;
 		}
 		if (Platform.isMobile) {
 			// No floating margin composer on mobile — collect the text in a modal,
@@ -201,6 +222,20 @@ export default class DocCommentsPlugin extends Plugin {
 		}
 		// Show a draft composer card in the margin (Notion-style) instead of a modal.
 		view.dispatch({ effects: setDraft.of({ from, to }) });
+	}
+
+	/** True when the cursor sits on the note's title — the first non-blank line, when
+	 *  that line is a Markdown heading. Gates the "Comment on whole file" menu item so a
+	 *  note-wide comment is offered from the title. (Obsidian's inline title — the
+	 *  filename above the body — isn't part of the editor surface, so we key on the H1.) */
+	private cursorInTitle(editor: Editor): boolean {
+		const cursorLine = editor.getCursor("head").line;
+		for (let i = 0; i < editor.lineCount(); i++) {
+			const text = editor.getLine(i);
+			if (text.trim() === "") continue;
+			return /^#{1,6}\s/.test(text) && i === cursorLine;
+		}
+		return false;
 	}
 
 	/** Reading view has no editor surface, so map the rendered selection back to
