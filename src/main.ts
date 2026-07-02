@@ -302,29 +302,25 @@ export default class DocCommentsPlugin extends Plugin {
 		// inline cards": close the panel and make sure comments are shown, rather
 		// than flipping the setting underneath an open panel.
 		if (this.isSidebarVisible()) {
-			this.app.workspace.detachLeavesOfType(COMMENTS_VIEW_TYPE);
-			this.syncSidebarOpen();
+			this.closeSidebarPanel();
 			if (!this.settings.showComments) {
 				this.settings.showComments = true;
 				await this.saveSettings();
 			}
 			this.updateRibbon();
 			this.refreshEditors();
-			new Notice("Comments shown inline");
 			return;
 		}
 		this.settings.showComments = !this.settings.showComments;
 		await this.saveSettings();
 		this.updateRibbon();
 		this.refreshEditors();
-		new Notice(this.settings.showComments ? "Comments shown" : "Comments hidden");
 	}
 
 	private async toggleResolved(): Promise<void> {
 		this.settings.showResolved = !this.settings.showResolved;
 		await this.saveSettings();
 		this.refreshEditors();
-		new Notice(this.settings.showResolved ? "Resolved comments shown" : "Resolved comments hidden");
 	}
 
 	private updateRibbon(): void {
@@ -350,11 +346,24 @@ export default class DocCommentsPlugin extends Plugin {
 	 *  gets revealed rather than closed. */
 	private async toggleSidebarPanel(): Promise<void> {
 		if (this.isSidebarVisible()) {
-			this.app.workspace.detachLeavesOfType(COMMENTS_VIEW_TYPE);
-			this.syncSidebarOpen();
+			this.closeSidebarPanel();
 			return;
 		}
 		await this.activateSidebar();
+	}
+
+	/** Close the comments panel for real: detach our tab AND collapse the dock it
+	 *  lived in. Detaching alone leaves the dock expanded showing whatever tab is
+	 *  next (backlinks, outline, …), which doesn't read as "closed" at all. */
+	private closeSidebarPanel(): void {
+		const { workspace } = this.app;
+		const roots = new Set(workspace.getLeavesOfType(COMMENTS_VIEW_TYPE).map((leaf) => leaf.getRoot()));
+		workspace.detachLeavesOfType(COMMENTS_VIEW_TYPE);
+		// Opening expanded the dock (revealLeaf), so closing collapses it again. A
+		// panel dragged into the main area just detaches — there's no dock to fold.
+		if (roots.has(workspace.rightSplit)) workspace.rightSplit.collapse();
+		if (roots.has(workspace.leftSplit)) workspace.leftSplit.collapse();
+		this.syncSidebarOpen();
 	}
 
 	/** Reveal the comments sidebar panel, creating it in the right split if needed. */
