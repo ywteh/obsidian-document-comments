@@ -356,8 +356,9 @@ export class CommentsSidebarView extends ItemView {
 			view.containerEl.querySelectorAll(".inline-title").forEach((t) => t.classList.toggle("is-active", active));
 			return;
 		}
+		const cid = cssEscape(id);
 		view.containerEl
-			.querySelectorAll(`.doc-comment-span[data-cid="${cssEscape(id)}"]`)
+			.querySelectorAll(`.doc-comment-span[data-cid="${cid}"], .doc-comment-edit-span[data-cid="${cid}"]`)
 			.forEach((s) => s.classList.toggle("is-active", active));
 	}
 

@@ -75,8 +75,14 @@ body {
 	border-bottom-color: transparent;
 	cursor: text;
 }
+/* Hovering a card (margin or sidebar) flares its anchored text. The resting span is
+   already amber, so the active state needs to clearly pop, not just deepen: a brighter
+   fill plus a soft ring that extends past the text line. */
 .doc-comment-span.is-active {
 	background-color: var(--dc-highlight-bg-active);
+	border-bottom-color: hsla(45, 90%, 40%, 0.95);
+	box-shadow: 0 0 0 3px var(--dc-highlight-bg-active);
+	border-radius: 2px;
 }
 .doc-comment-span.is-resolved {
 	background-color: transparent;
