@@ -179,9 +179,10 @@ class ReadingMargin {
 		// write directly), so the stylesheet caps the text column with plain
 		// descendant selectors instead of :has().
 		this.readingView.toggleClass("dc-has", this.comments.length > 0 || !!this.draft);
-		// Highlights follow the master toggle alone, so they persist while the
-		// sidebar panel hosts the cards (dc-has is off, dc-highlights stays on).
-		this.readingView.toggleClass("dc-highlights", this.deps.showComments());
+		// Highlights show whenever comments are visible anywhere — inline (master
+		// toggle) or in the sidebar panel (you're looking at comments, so the
+		// in-text anchors must light up even with the inline column toggled off).
+		this.readingView.toggleClass("dc-highlights", this.deps.showComments() || this.deps.sidebarOpen());
 		const topRef = this.readingView.getBoundingClientRect().top;
 		const placements: Array<{ el: HTMLElement; top: number }> = [];
 		for (const c of this.comments) {

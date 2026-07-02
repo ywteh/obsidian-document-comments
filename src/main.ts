@@ -298,6 +298,21 @@ export default class DocCommentsPlugin extends Plugin {
 	}
 
 	private async toggleComments(): Promise<void> {
+		// With the sidebar hosting the comments, this button means "switch to the
+		// inline cards": close the panel and make sure comments are shown, rather
+		// than flipping the setting underneath an open panel.
+		if (this.isSidebarVisible()) {
+			this.app.workspace.detachLeavesOfType(COMMENTS_VIEW_TYPE);
+			this.syncSidebarOpen();
+			if (!this.settings.showComments) {
+				this.settings.showComments = true;
+				await this.saveSettings();
+			}
+			this.updateRibbon();
+			this.refreshEditors();
+			new Notice("Comments shown inline");
+			return;
+		}
 		this.settings.showComments = !this.settings.showComments;
 		await this.saveSettings();
 		this.updateRibbon();
@@ -315,10 +330,10 @@ export default class DocCommentsPlugin extends Plugin {
 	private updateRibbon(): void {
 		if (!this.ribbonIcon) return;
 		this.ribbonIcon.toggleClass("is-active", this.settings.showComments);
-		this.ribbonIcon.setAttribute(
-			"aria-label",
-			this.settings.showComments ? "Hide document comments" : "Show document comments",
-		);
+		// Static label, matching "Toggle comments sidebar" — the is-active tint
+		// carries the on/off state, and with the sidebar open the action is
+		// "switch to inline" rather than a plain show/hide anyway.
+		this.ribbonIcon.setAttribute("aria-label", "Toggle document comments");
 	}
 
 	/** Force open editors + reading views (+ the sidebar) to re-evaluate live config. */
