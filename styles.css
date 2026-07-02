@@ -122,9 +122,25 @@ body {
 	0%, 100% { background-color: var(--dc-highlight-bg); }
 	30% { background-color: var(--dc-highlight-bg-active); }
 }
-/* File-level comments have no in-text anchor, so flaring their thread lights up the
-   note's inline title instead — the whole-file "anchor". */
-.inline-title.is-active {
+/* File-level comments have no in-text anchor, so their thread lights up the note's
+   inline title instead — the whole-file "anchor". At rest the title carries the same
+   amber as an anchored span (class set by the margins while an open file-level
+   comment exists); hovering/clicking the card flares it. Order matters below:
+   resting → master-toggle mute → flare, each container-prefixed so the later rule
+   wins its predecessor. */
+.cm-editor .inline-title.dc-file-commented,
+.markdown-reading-view .inline-title.dc-file-commented {
+	background-color: var(--dc-highlight-bg);
+	border-bottom: 2px solid var(--dc-highlight-border);
+	border-radius: 4px;
+}
+.cm-editor:not(.dc-highlights) .inline-title.dc-file-commented,
+.markdown-reading-view:not(.dc-highlights) .inline-title.dc-file-commented {
+	background-color: transparent;
+	border-bottom-color: transparent;
+}
+.cm-editor .inline-title.is-active,
+.markdown-reading-view .inline-title.is-active {
 	background-color: var(--dc-highlight-bg-active);
 	border-radius: 4px;
 }

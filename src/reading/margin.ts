@@ -1,7 +1,7 @@
 import { App, MarkdownView, Notice, setIcon } from "obsidian";
 import { Result } from "better-result";
 import { ParsedComment } from "../format/types";
-import { existingIds, parseComments } from "../format/parse";
+import { existingIds, isAnchored, parseComments } from "../format/parse";
 import { generateId } from "../format/ids";
 import { Card, CardCallbacks, cardSignature } from "../ui/card";
 import {
@@ -40,6 +40,8 @@ class ReadingMargin {
 	private scroller: HTMLElement;
 	private cards = new Map<string, Card>();
 	private comments: ParsedComment[] = [];
+	/** Ids of file-level comments (body, no anchor) — they light the inline title. */
+	private fileLevelIds = new Set<string>();
 	private activeId: string | null = null;
 	private draft: { from: number; to: number } | null = null;
 	private draftEl: HTMLElement | null = null;
@@ -109,6 +111,16 @@ class ReadingMargin {
 			return; // file vanished or unreadable — keep the last render
 		}
 		const all = parseComments(data).filter((c) => c.body);
+		this.fileLevelIds = new Set(all.filter((c) => !isAnchored(c)).map((c) => c.id));
+		// Resting title mark: the whole-file counterpart of the span's resting amber.
+		// Keyed off the full parse so it persists while the sidebar hosts the cards.
+		const title = this.readingView.querySelector(".inline-title");
+		if (title instanceof HTMLElement) {
+			title.classList.toggle(
+				"dc-file-commented",
+				all.some((c) => !isAnchored(c) && c.status !== "resolved"),
+			);
+		}
 		// Sidebar open → inline cards step aside (the panel lists them instead).
 		this.comments = this.deps.showComments() && !this.deps.sidebarOpen() ? all : [];
 		this.reconcileCards();
@@ -327,6 +339,11 @@ class ReadingMargin {
 	}
 
 	private markHighlight(id: string, active: boolean): void {
+		// File-level comments have no in-text anchor — light the inline title instead.
+		if (this.fileLevelIds.has(id)) {
+			this.readingView.querySelectorAll(".inline-title").forEach((t) => t.classList.toggle("is-active", active));
+			return;
+		}
 		const cid = cssEscape(id);
 		this.scroller
 			.querySelectorAll(`.doc-comment-span[data-cid="${cid}"], .doc-comment-edit-span[data-cid="${cid}"]`)
@@ -336,10 +353,12 @@ class ReadingMargin {
 	/** Clicking a margin card flashes its highlighted text — no scroll (it's aligned). */
 	private flashAnchor(id: string): void {
 		this.setActive(id);
-		const span = this.scroller.querySelector(`.doc-comment-span[data-cid="${cssEscape(id)}"]`);
-		if (!span) return;
-		span.classList.add("dc-flash");
-		window.setTimeout(() => span.classList.remove("dc-flash"), 900);
+		const target = this.fileLevelIds.has(id)
+			? this.readingView.querySelector(".inline-title")
+			: this.scroller.querySelector(`.doc-comment-span[data-cid="${cssEscape(id)}"]`);
+		if (!target) return;
+		target.classList.add("dc-flash");
+		window.setTimeout(() => target.classList.remove("dc-flash"), 900);
 	}
 
 	/** Scroll the reading view the minimum needed to reveal a just-opened composer. */

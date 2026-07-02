@@ -153,6 +153,7 @@ class MarginView implements PluginValue {
 	}
 
 	private reconcile(): void {
+		this.syncTitleMark();
 		const comments = this.comments();
 		const present = new Set(comments.map((c) => c.id));
 
@@ -176,6 +177,18 @@ class MarginView implements PluginValue {
 				existing.update(c);
 			}
 		}
+	}
+
+	/** Mark the inline title while the note has an open file-level comment — the
+	 *  whole-file counterpart of the anchored span's resting highlight. Keyed off the
+	 *  full parse (not the sidebar-filtered card list) so it persists, like the span
+	 *  highlights, while the sidebar hosts the cards; the master toggle mutes it in CSS. */
+	private syncTitleMark(): void {
+		const title = this.titleEl();
+		if (!title) return;
+		const all = this.view.state.field(commentField, false)?.comments ?? [];
+		const marked = all.some((c) => !!c.body && !isAnchored(c) && c.status !== "resolved");
+		title.classList.toggle("dc-file-commented", marked);
 	}
 
 	private cardView(): CardView {
@@ -329,7 +342,24 @@ class MarginView implements PluginValue {
 		}
 	}
 
+	/** File-level comments (body, no anchor span) light the note's inline title
+	 *  instead of an in-text highlight — the title is their "anchor". */
+	private isFileLevel(id: string): boolean {
+		const c = this.view.state.field(commentField, false)?.comments.find((x) => x.id === id);
+		return !!c && !!c.body && !isAnchored(c);
+	}
+
+	/** The note's inline title (inside .cm-sizer in Live Preview), if shown. */
+	private titleEl(): HTMLElement | null {
+		const el = this.view.dom.querySelector(".inline-title");
+		return el instanceof HTMLElement ? el : null;
+	}
+
 	private markHighlight(id: string, active: boolean): void {
+		if (this.isFileLevel(id)) {
+			this.titleEl()?.classList.toggle("is-active", active);
+			return;
+		}
 		const cid = cssEscape(id);
 		const sel = `.doc-comment-span[data-cid="${cid}"], .doc-comment-edit-span[data-cid="${cid}"]`;
 		this.view.contentDOM.querySelectorAll(sel).forEach((s) => s.classList.toggle("is-active", active));
@@ -339,10 +369,12 @@ class MarginView implements PluginValue {
 	 *  card is already aligned to its text, so scrolling the doc was pure disruption. */
 	private flashAnchor(id: string): void {
 		this.setActive(id);
-		const span = this.view.contentDOM.querySelector(`.doc-comment-span[data-cid="${cssEscape(id)}"]`);
-		if (!span) return;
-		span.classList.add("dc-flash");
-		window.setTimeout(() => span.classList.remove("dc-flash"), 900);
+		const target = this.isFileLevel(id)
+			? this.titleEl()
+			: this.view.contentDOM.querySelector(`.doc-comment-span[data-cid="${cssEscape(id)}"]`);
+		if (!target) return;
+		target.classList.add("dc-flash");
+		window.setTimeout(() => target.classList.remove("dc-flash"), 900);
 	}
 
 	/** Scroll the editor the minimum needed to bring a just-opened reply composer

@@ -140,8 +140,8 @@ export default class DocCommentsPlugin extends Plugin {
 
 		this.addCommand({
 			id: "open-comments-sidebar",
-			name: "Open comments sidebar",
-			callback: () => void this.activateSidebar(),
+			name: "Toggle comments sidebar",
+			callback: () => void this.toggleSidebarPanel(),
 		});
 
 		this.ribbonIcon = this.addRibbonIcon(
@@ -150,7 +150,7 @@ export default class DocCommentsPlugin extends Plugin {
 			() => void this.toggleComments(),
 		);
 		this.updateRibbon();
-		this.addRibbonIcon("messages-square", "Open comments sidebar", () => void this.activateSidebar());
+		this.addRibbonIcon("messages-square", "Toggle comments sidebar", () => void this.toggleSidebarPanel());
 
 		this.registerEvent(
 			this.app.workspace.on("editor-menu", (menu, editor) => {
@@ -328,6 +328,18 @@ export default class DocCommentsPlugin extends Plugin {
 		});
 		this.scheduleReadingRefresh();
 		this.sidebarView()?.requestRefresh();
+	}
+
+	/** Ribbon/command behavior: close the panel when it's visible, else open it.
+	 *  A panel that merely exists but is hidden (collapsed dock, background tab)
+	 *  gets revealed rather than closed. */
+	private async toggleSidebarPanel(): Promise<void> {
+		if (this.isSidebarVisible()) {
+			this.app.workspace.detachLeavesOfType(COMMENTS_VIEW_TYPE);
+			this.syncSidebarOpen();
+			return;
+		}
+		await this.activateSidebar();
 	}
 
 	/** Reveal the comments sidebar panel, creating it in the right split if needed. */
