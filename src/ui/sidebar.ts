@@ -363,6 +363,17 @@ export class CommentsSidebarView extends ItemView {
 			.forEach((s) => s.classList.toggle("is-active", active));
 	}
 
+	/** The text cursor in the editor entered/left a comment anchor: light that
+	 *  card (and the specific suggestion row) and scroll it into view — without
+	 *  stealing focus from the editor. */
+	cursorReveal(id: string | null, editId: string | null): void {
+		for (const [cid, card] of this.cards) {
+			card.setActive(cid === id);
+			card.setActiveEdit(cid === id ? editId : null);
+		}
+		if (id) this.cards.get(id)?.el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+	}
+
 	/** Hovering one suggestion row lights just that edit's sub-span in the note.
 	 *  Editor views only — reading view doesn't render edit sub-spans (no-op there). */
 	private markDocEditHighlight(id: string, editId: string, active: boolean): void {

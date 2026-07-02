@@ -502,6 +502,12 @@ body {
 	border-radius: var(--radius-s, 6px);
 	background-color: var(--background-secondary);
 }
+/* The text cursor sits in this edit's sub-span — light the row in the card. */
+.dc-suggestion.is-active {
+	background-color: var(--dc-edit-bg);
+	border-color: var(--dc-edit-border);
+	border-left-color: var(--dc-edit-border);
+}
 .dc-suggestion.is-orphan {
 	border-left-color: var(--background-modifier-border);
 	opacity: 0.75;

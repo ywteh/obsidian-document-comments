@@ -2,7 +2,7 @@ import { Notice, setIcon } from "obsidian";
 import { Result } from "better-result";
 import { EditorView, PluginValue, ViewPlugin } from "@codemirror/view";
 import { ParsedComment } from "../format/types";
-import { anchorRange, isAnchored, isFileComment } from "../format/parse";
+import { anchorRange, editTextRange, isAnchored, isFileComment } from "../format/parse";
 import { commentField } from "./state";
 import { commentConfig } from "./config";
 import { clearDraft, draftField } from "./draft";
@@ -37,6 +37,8 @@ class MarginView implements PluginValue {
 	private container: HTMLElement;
 	private cards = new Map<string, Card>();
 	private activeId: string | null = null;
+	/** Last (id, editId) pair the text cursor sat in — dedupes syncCursor work. */
+	private cursorKey = "";
 	private draftEl: HTMLElement | null = null;
 	private draftFocused = false;
 	private draftOutside: ((e: MouseEvent) => void) | null = null;
@@ -69,7 +71,9 @@ class MarginView implements PluginValue {
 		}
 		this.cb = {
 			getAuthor: () => view.state.facet(commentConfig).author(),
-			onHover: (id, active) => this.setActive(active ? id : null),
+			// Hover-leave falls back to the cursor's thread (if any) rather than
+			// clearing — so a cursor-lit card survives a stray mouse pass.
+			onHover: (id, active) => this.setActive(active ? id : (this.cursorHit()?.id ?? null)),
 			onHoverEdit: (id, editId, active) => this.markEditHighlight(id, editId, active),
 			onClickAnchor: (id) => this.flashAnchor(id),
 			onResize: () => this.reposition(),
@@ -103,7 +107,41 @@ class MarginView implements PluginValue {
 		// called during an update/construction, so positioning MUST go through
 		// requestMeasure. The key also coalesces bursts into one measure per frame.
 		this.reconcile();
+		this.syncCursor();
 		this.requestReposition();
+	}
+
+	/** The comment (and edit sub-span) the text cursor currently sits in, if any.
+	 *  Reads the raw field — NOT comments(), which is empty while the sidebar
+	 *  hosts the cards, exactly when the cursor should reveal the thread there. */
+	private cursorHit(): { id: string; editId: string | null } | null {
+		const pos = this.view.state.selection.main.head;
+		const all = this.view.state.field(commentField, false)?.comments ?? [];
+		let hit: { id: string; editId: string | null } | null = null;
+		for (const c of all) {
+			const r = anchorRange(c);
+			if (!r || pos < r.from || pos > r.to) continue;
+			let editId: string | null = null;
+			for (const s of c.suggestions) {
+				const er = editTextRange(s);
+				if (er && pos >= er.from && pos <= er.to) editId = s.editId;
+			}
+			hit = { id: c.id, editId }; // nested anchors: the later (inner) one wins
+		}
+		return hit;
+	}
+
+	/** Cursor moved into / out of an anchor: light the card (and the specific
+	 *  suggestion row), and let the sidebar scroll the thread into view when it's
+	 *  hosting the cards. Cheap — bails unless the (id, editId) pair changed. */
+	private syncCursor(): void {
+		const hit = this.cursorHit();
+		const key = hit ? `${hit.id}:${hit.editId ?? ""}` : "";
+		if (key === this.cursorKey) return;
+		this.cursorKey = key;
+		this.setActive(hit?.id ?? null);
+		for (const [cid, card] of this.cards) card.setActiveEdit(cid === hit?.id ? hit.editId : null);
+		this.view.state.facet(commentConfig).onCursorThread?.(hit?.id ?? null, hit?.editId ?? null);
 	}
 
 	private requestReposition(): void {

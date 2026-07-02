@@ -64,6 +64,9 @@ export class Card {
 	private clipEl: HTMLElement | null = null;
 	private threadEl: HTMLElement | null = null;
 	private footEl: HTMLElement | null = null;
+	/** Suggestion row elements by editId — lets the cursor light a single row. */
+	private suggestionRows = new Map<string, HTMLElement>();
+	private activeEditId: string | null = null;
 	/** Owns the child components MarkdownRenderer attaches (link/embed handlers). */
 	private md = new Component();
 	/** Re-measures overflow when the (async-rendered) content settles or changes. */
@@ -133,6 +136,13 @@ export class Card {
 		this.el.toggleClass("is-active", active);
 	}
 
+	/** Light one suggestion row (cursor sitting in its edit sub-span), or none. */
+	setActiveEdit(editId: string | null): void {
+		if (this.activeEditId === editId) return;
+		this.activeEditId = editId;
+		for (const [eid, row] of this.suggestionRows) row.toggleClass("is-active", eid === editId);
+	}
+
 	private setOpen(open: boolean): void {
 		if (this.open === open) return;
 		const fromHeight = this.clipEl?.offsetHeight ?? 0;
@@ -176,6 +186,7 @@ export class Card {
 	private render(): void {
 		const c = this.comment;
 		this.el.empty();
+		this.suggestionRows.clear();
 		this.el.toggleClass("is-resolved", c.status === "resolved");
 		this.el.toggleClass("is-open", this.open);
 
@@ -334,6 +345,8 @@ export class Card {
 		for (const s of this.comment.suggestions) {
 			const anchored = isEditAnchored(s);
 			const row = wrap.createDiv("dc-suggestion");
+			this.suggestionRows.set(s.editId, row);
+			row.toggleClass("is-active", s.editId === this.activeEditId);
 			row.toggleClass("is-orphan", !anchored);
 			row.toggleClass("is-stale", s.stale);
 			row.toggleClass("is-conflict", s.conflict);

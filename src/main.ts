@@ -38,6 +38,7 @@ export default class DocCommentsPlugin extends Plugin {
 				showResolved: () => this.settings.showResolved,
 				sidebarOpen: () => this.sidebarOpen,
 				openInSidebar: (id) => void this.revealComment(id),
+				onCursorThread: (id, editId) => this.sidebarView()?.cursorReveal(id, editId),
 				isMobile: () => Platform.isMobile,
 			}),
 			// Reflects dc-has / dc-highlights / dc-hide-resolved onto .cm-editor so the
