@@ -209,7 +209,13 @@ export class CommentsSidebarView extends ItemView {
 		this.fileLevelIds = new Set(all.filter((c) => !isAnchored(c)).map((c) => c.id));
 		const open = all.filter((c) => c.status !== "resolved");
 		const resolved = all.filter((c) => c.status === "resolved");
-		const shown = this.filter === "open" ? open : this.filter === "resolved" ? resolved : all;
+		const picked = this.filter === "open" ? open : this.filter === "resolved" ? resolved : all;
+		// File-level comments are about the note as a whole, so list them first —
+		// like a banner — with anchored comments below in document order. The sort is
+		// stable, so each group keeps its document order.
+		const shown = [...picked].sort(
+			(a, b) => Number(this.fileLevelIds.has(b.id)) - Number(this.fileLevelIds.has(a.id)),
+		);
 
 		this.titleEl.setText(file.basename);
 		this.paintTabs({ open: open.length, resolved: resolved.length, all: all.length });
