@@ -126,16 +126,22 @@ export const computeAcceptSuggestion = (
 	if (s.conflict)
 		return Result.err("This edit overlaps another comment or edit anchor — accepting would corrupt it.");
 
-	// The replace span: the old text plus both markers. A deletion (empty replacement)
-	// swallows one adjacent space so "will <e>really </e>ship" → "will ship", not
-	// "will  ship" — and no dangling space is left at a line edge.
-	let from = s.open.from;
-	let to = s.close.to;
+	// The replace span: the old text plus both markers.
+	const changes: Change[] = [{ from: s.open.from, to: s.close.to, insert: s.replacement }];
+	// A deletion (empty replacement) shouldn't leave doubled spaces or a dangling one
+	// at a line edge: find the real prose characters flanking the span — looking
+	// THROUGH any adjacent c:/e: markers, which often sit flush — and swallow one
+	// space. "will <e>really</e> ship" → "will ship", not "will  ship".
 	if (s.replacement === "") {
-		const before = from > 0 ? doc[from - 1] : "\n";
-		const after = to < doc.length ? doc[to] : "\n";
-		if (before === " " && (after === " " || after === "\n")) from -= 1;
-		else if (before === "\n" && after === " ") to += 1;
+		const beforePos = skipMarkersBack(doc, s.open.from);
+		const afterPos = skipMarkersFwd(doc, s.close.to);
+		const before = beforePos > 0 ? doc[beforePos - 1] : "\n";
+		const after = afterPos < doc.length ? doc[afterPos] : "\n";
+		if (before === " " && (after === " " || after === "\n")) {
+			changes.push({ from: beforePos - 1, to: beforePos, insert: "" });
+		} else if (before === "\n" && after === " ") {
+			changes.push({ from: afterPos, to: afterPos + 1, insert: "" });
+		}
 	}
 
 	const was = s.was ?? doc.slice(s.open.to, s.close.from);
@@ -147,17 +153,16 @@ export const computeAcceptSuggestion = (
 	// Accepting changes the anchored text, so refresh the redundant `quote:` snapshot
 	// from the post-accept anchor (markers stripped, in case another edit still nests).
 	// Only when the edit span actually sits inside the anchor — a standalone `e:`
-	// elsewhere in the note doesn't change what this comment points at.
+	// elsewhere in the note doesn't change what this comment points at. (A swallowed
+	// space isn't reflected here; sanitizeQuote collapses whitespace on write anyway.)
 	const body = resolvedBody(c, editId, note);
-	if (c.open && c.close && c.open.to <= c.close.from && from >= c.open.to && to <= c.close.from) {
-		const anchored = doc.slice(c.open.to, from) + s.replacement + doc.slice(to, c.close.from);
+	if (c.open && c.close && c.open.to <= c.close.from && s.open.from >= c.open.to && s.close.to <= c.close.from) {
+		const anchored = doc.slice(c.open.to, s.open.from) + s.replacement + doc.slice(s.close.to, c.close.from);
 		const quote = anchored.replace(/<!--\/?[ce]:[A-Za-z0-9]+-->/g, "").trim();
 		body.quote = quote || undefined;
 	}
-	return Result.ok([
-		{ from, to, insert: s.replacement },
-		{ from: c.body.from, to: c.body.to, insert: serializeBody(id, body) },
-	]);
+	changes.push({ from: c.body.from, to: c.body.to, insert: serializeBody(id, body) });
+	return Result.ok(changes);
 };
 
 /** Reject a suggestion: unwrap its `e:` markers (prose untouched), drop the `~` line,
@@ -186,6 +191,21 @@ export const computeRejectSuggestion = (
 	if (s.close) changes.push({ from: s.close.from, to: s.close.to, insert: "" });
 	changes.push({ from: c.body.from, to: c.body.to, insert: serializeBody(id, resolvedBody(c, editId, note)) });
 	return Result.ok(changes);
+};
+
+// A run of adjacent c:/e: markers — deletions look through these to find the real
+// flanking prose (a plugin-written anchor sits flush against the edit's markers).
+const MARKER_CHAIN_FWD = /^(?:<!--\/?[ce]:[A-Za-z0-9]+-->)+/;
+const MARKER_CHAIN_BACK = /(?:<!--\/?[ce]:[A-Za-z0-9]+-->)+$/;
+
+const skipMarkersFwd = (doc: string, i: number): number => {
+	const m = MARKER_CHAIN_FWD.exec(doc.slice(i));
+	return m ? i + m[0].length : i;
+};
+
+const skipMarkersBack = (doc: string, i: number): number => {
+	const m = MARKER_CHAIN_BACK.exec(doc.slice(0, i));
+	return m ? i - m[0].length : i;
 };
 
 /** The comment's body with `editId`'s suggestion removed and `note` appended to the thread. */

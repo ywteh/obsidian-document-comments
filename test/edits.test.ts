@@ -208,6 +208,23 @@ describe("accept / reject suggestion", () => {
 		expect(out).toContain("Ship it\nNext line.");
 	});
 
+	it("swallows the doubled space through a flush c: anchor marker", () => {
+		// The comment anchor sits flush against the edit markers — the space to swallow
+		// is beyond <!--/c:...-->, not directly adjacent to the replace span.
+		const doc =
+			"We will <!--c:dsx--><!--e:d1-->definitely<!--/e:d1--><!--/c:dsx--> ship.\n" +
+			serializeBody("dsx", {
+				status: "open",
+				quote: "definitely",
+				thread: [{ author: "claude", text: "cut it" }],
+				suggestions: [{ editId: "d1", was: "definitely", state: "proposed", replacement: "" }],
+				reactions: [],
+			});
+		const out = applyChanges(doc, computeAcceptSuggestion(doc, "dsx", "d1", "me", "t").unwrap());
+		expect(out).toContain("We will<!--c:dsx--><!--/c:dsx--> ship."); // single space survives
+		expect(out.replace(/<!--[^>]*-->/g, "")).toContain("We will ship.");
+	});
+
 	it("accepting a deletion at a line start trims the leading space", () => {
 		const doc =
 			"Intro.\n<!--e:t2-->Well,<!--/e:t2--> we ship.\n" +
