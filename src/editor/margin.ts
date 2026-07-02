@@ -96,6 +96,11 @@ class MarginView implements PluginValue {
 		view.contentDOM.addEventListener("mousedown", this.onContentMouseDown);
 		view.contentDOM.addEventListener("mouseover", this.onContentMouseOver);
 		view.contentDOM.addEventListener("mouseout", this.onContentMouseOut);
+		// The inline title is a separate contenteditable OUTSIDE the CM document, so
+		// the selection watcher can't see the cursor there. Focus events stand in:
+		// title focused = "cursor on the file-level comment's anchor".
+		view.dom.addEventListener("focusin", this.onTitleFocusIn);
+		view.dom.addEventListener("focusout", this.onTitleFocusOut);
 
 		this.reconcile();
 		this.requestReposition();
@@ -131,10 +136,40 @@ class MarginView implements PluginValue {
 		return hit;
 	}
 
+	/** The first live file-level comment — the one the focused title stands for. */
+	private fileCommentId(): string | null {
+		const all = this.view.state.field(commentField, false)?.comments ?? [];
+		const c = all.find((x) => isFileComment(x) && x.status !== "resolved") ?? all.find(isFileComment);
+		return c?.id ?? null;
+	}
+
+	private titleFocused(): boolean {
+		const ae = this.view.dom.ownerDocument.activeElement;
+		return ae instanceof HTMLElement && !!ae.closest(".inline-title");
+	}
+
+	private onTitleFocusIn = (e: FocusEvent): void => {
+		if (!(e.target instanceof HTMLElement) || !e.target.closest(".inline-title")) return;
+		const id = this.fileCommentId();
+		if (!id) return;
+		this.cursorKey = `title:${id}`;
+		this.setActive(id);
+		this.view.state.facet(commentConfig).onCursorThread?.(id, null);
+	};
+
+	private onTitleFocusOut = (e: FocusEvent): void => {
+		if (!(e.target instanceof HTMLElement) || !e.target.closest(".inline-title")) return;
+		this.cursorKey = ":force"; // impossible key (ids are alphanumeric) so syncCursor recomputes
+		this.syncCursor();
+	};
+
 	/** Cursor moved into / out of an anchor: light the card (and the specific
 	 *  suggestion row), and let the sidebar scroll the thread into view when it's
 	 *  hosting the cards. Cheap — bails unless the (id, editId) pair changed. */
 	private syncCursor(): void {
+		// While the title holds focus, the file-level activation owns the state —
+		// the CM selection still points wherever the cursor last was in the body.
+		if (this.titleFocused()) return;
 		const hit = this.cursorHit();
 		const key = hit ? `${hit.id}:${hit.editId ?? ""}` : "";
 		if (key === this.cursorKey) return;
@@ -172,6 +207,8 @@ class MarginView implements PluginValue {
 		this.view.contentDOM.removeEventListener("mousedown", this.onContentMouseDown);
 		this.view.contentDOM.removeEventListener("mouseover", this.onContentMouseOver);
 		this.view.contentDOM.removeEventListener("mouseout", this.onContentMouseOut);
+		this.view.dom.removeEventListener("focusin", this.onTitleFocusIn);
+		this.view.dom.removeEventListener("focusout", this.onTitleFocusOut);
 		this.removeDraftOutside();
 		for (const card of this.cards.values()) card.destroy();
 		this.cards.clear();

@@ -221,6 +221,13 @@ body {
 	transform: translateX(-2px);
 	z-index: 2;
 }
+/* Programmatic activation (cursor in the anchor / title focused) must read at a
+   glance — the hover lift alone is invisible in the sidebar dock. Amber ring,
+   matching the anchor highlight. Hover keeps the subtle treatment above. */
+.doc-comment-card.is-active {
+	border-color: var(--dc-highlight-border);
+	box-shadow: 0 0 0 1px var(--dc-highlight-border), var(--shadow-s);
+}
 .doc-comment-card.is-resolved {
 	opacity: 0.65;
 }
