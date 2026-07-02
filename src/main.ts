@@ -406,6 +406,14 @@ export default class DocCommentsPlugin extends Plugin {
 		const open = this.isSidebarVisible();
 		if (open === this.sidebarOpen) return;
 		this.sidebarOpen = open;
+		// The sidebar takes over from the inline cards: opening it flips the master
+		// toggle OFF (not merely suppresses the column), so closing the panel later
+		// doesn't pop the cards back. "Toggle document comments" brings them back.
+		if (open && this.settings.showComments) {
+			this.settings.showComments = false;
+			void this.saveSettings();
+			this.updateRibbon();
+		}
 		this.refreshEditors();
 	}
 
