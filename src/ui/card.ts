@@ -1,6 +1,6 @@
 import { App, Component, Keymap, MarkdownRenderer, Menu, setIcon } from "obsidian";
 import { ParsedComment } from "../format/types";
-import { isAnchored, isEditAnchored } from "../format/parse";
+import { isAnchored, isEditAnchored, isOrphan } from "../format/parse";
 
 const QUICK_EMOJI = ["👍", "❤️", "😄", "🎉", "😮", "👀", "🙏"];
 
@@ -179,6 +179,15 @@ export class Card {
 		// collapsed; the footer (Show more / Open in sidebar) sits outside the clip.
 		const clip = this.el.createDiv("dc-card-clip");
 		this.clipEl = clip;
+		// A comment whose anchor markers were deleted: warn, and show the quote it used
+		// to sit on so the reader can find the spot (or delete the comment).
+		this.el.toggleClass("is-orphan", isOrphan(c));
+		if (isOrphan(c)) {
+			clip.createDiv({
+				cls: "dc-card-warn",
+				text: `⚠ anchor lost — was on: “${c.quote}”`,
+			});
+		}
 		const thread = clip.createDiv("dc-thread");
 		this.threadEl = thread;
 		c.thread.forEach((entry, i) => this.renderEntry(thread, entry, i));
@@ -323,10 +332,19 @@ export class Card {
 			const row = wrap.createDiv("dc-suggestion");
 			row.toggleClass("is-orphan", !anchored);
 			row.toggleClass("is-stale", s.stale);
+			row.toggleClass("is-conflict", s.conflict);
 
+			// Another anchor's marker sits inside this edit's replace range — accepting
+			// would destroy it, so Accept is withheld (reject stays safe).
+			if (s.conflict) {
+				row.createDiv({
+					cls: "dc-suggestion__stale",
+					text: "⚠ overlaps another comment's anchor — can't accept",
+				});
+			}
 			// The prose moved under this suggestion since it was made — accepting still
 			// replaces whatever's between the markers, so warn rather than block.
-			if (s.stale) {
+			else if (s.stale) {
 				row.createDiv({
 					cls: "dc-suggestion__stale",
 					text: "⚠ text changed since this was suggested",
@@ -343,9 +361,9 @@ export class Card {
 			}
 
 			const actions = row.createDiv("dc-suggestion__actions");
-			// Accept needs live markers to replace within; an orphaned suggestion can only
-			// be rejected (which just clears the stale `~` line).
-			if (anchored) {
+			// Accept needs live markers to replace within (and no overlap conflict); an
+			// orphaned suggestion can only be rejected (which just clears the `~` line).
+			if (anchored && !s.conflict) {
 				this.roundButton(actions, "check", "Accept", "dc-round--confirm", () =>
 					this.cb.acceptSuggestion(this.id, s.editId),
 				);
@@ -506,7 +524,8 @@ export const cardSignature = (c: ParsedComment): string => {
 		c.thread,
 		c.reactions,
 		isAnchored(c),
-		c.suggestions.map((s) => [s.editId, s.state, s.was, s.replacement, isEditAnchored(s), s.stale]),
+		c.quote, // the orphan banner shows it
+		c.suggestions.map((s) => [s.editId, s.state, s.was, s.replacement, isEditAnchored(s), s.stale, s.conflict]),
 	]);
 };
 

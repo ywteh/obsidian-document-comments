@@ -10,7 +10,7 @@ import {
 	computeRejectSuggestion,
 	computeSetResolved,
 } from "../src/editor/edits";
-import { anchorRange, isAnchored, isOrphan, parseComments } from "../src/format/parse";
+import { anchorRange, isAnchored, isFileComment, isOrphan, parseComments } from "../src/format/parse";
 import { closeMarker, editCloseMarker, editOpenMarker, openMarker, serializeBody } from "../src/format/serialize";
 
 const DOC = "We should ship on Friday regardless of the QA timeline.\n\nNext paragraph.\n";
@@ -97,7 +97,8 @@ describe("computeAddFileComment", () => {
 		expect(c.open).toBeNull();
 		expect(c.close).toBeNull();
 		expect(isAnchored(c)).toBe(false);
-		expect(isOrphan(c)).toBe(true); // has a body, no anchor — note-wide by design
+		expect(isFileComment(c)).toBe(true); // no anchor AND no quote — note-wide by design
+		expect(isOrphan(c)).toBe(false); // never anchored ≠ lost its anchor
 		expect(c.quote).toBeUndefined();
 		expect(c.thread[0]).toMatchObject({ author: "me", text: "A note about the whole file." });
 	});
@@ -186,12 +187,38 @@ describe("accept / reject suggestion", () => {
 		expect(parseComments(out)[0].quote).toBe("Thursday"); // stale "Friday" snapshot refreshed
 	});
 
-	it("accepts a deletion: removes the anchored text", () => {
+	it("accepts a deletion: removes the anchored text and the doubled space", () => {
 		const out = accept(EDIT_DOC, "e1");
-		expect(out).toContain("We will  ship on"); // "definitely" gone (double space)
+		expect(out).toContain("We will ship on"); // "definitely" gone, single space kept
 		expect(out).not.toContain(editOpenMarker("e1"));
 		const c = parseComments(out)[0];
 		expect(c.thread[c.thread.length - 1].text).toBe("Accepted edit: delete “definitely”");
+	});
+
+	it("accepting a deletion at a line end trims the dangling space", () => {
+		const doc =
+			"Ship it <!--e:t1-->soon<!--/e:t1-->\nNext line.\n" +
+			serializeBody("d1", {
+				status: "open",
+				thread: [{ author: "claude", text: "cut it" }],
+				suggestions: [{ editId: "t1", was: "soon", state: "proposed", replacement: "" }],
+				reactions: [],
+			});
+		const out = applyChanges(doc, computeAcceptSuggestion(doc, "d1", "t1", "me", "t").unwrap());
+		expect(out).toContain("Ship it\nNext line.");
+	});
+
+	it("accepting a deletion at a line start trims the leading space", () => {
+		const doc =
+			"Intro.\n<!--e:t2-->Well,<!--/e:t2--> we ship.\n" +
+			serializeBody("d2", {
+				status: "open",
+				thread: [{ author: "claude", text: "cut it" }],
+				suggestions: [{ editId: "t2", was: "Well,", state: "proposed", replacement: "" }],
+				reactions: [],
+			});
+		const out = applyChanges(doc, computeAcceptSuggestion(doc, "d2", "t2", "me", "t").unwrap());
+		expect(out).toContain("Intro.\nwe ship.");
 	});
 
 	it("rejects: unwraps the markers but leaves the prose, drops the line", () => {
@@ -208,8 +235,28 @@ describe("accept / reject suggestion", () => {
 
 	it("accepting then the other leaves clean prose and no suggestions", () => {
 		const out = accept(accept(EDIT_DOC, "e2"), "e1");
-		expect(out).toContain("We will  ship on Thursday after review.");
+		expect(out).toContain("We will ship on Thursday after review.");
 		expect(parseComments(out)[0].suggestions).toHaveLength(0);
+	});
+
+	it("blocks accepting an edit whose range overlaps another anchor", () => {
+		// e:o1 opens inside c:c9's anchor but closes beyond it — accepting would
+		// destroy the <!--/c:c9--> marker caught inside the replace range.
+		const doc =
+			"A <!--c:c9-->quick <!--e:o1-->brown<!--/c:c9--> fox<!--/e:o1--> jumps.\n" +
+			serializeBody("c9", {
+				status: "open",
+				quote: "quick brown",
+				thread: [{ author: "claude", text: "overlapping" }],
+				suggestions: [{ editId: "o1", state: "proposed", replacement: "red" }],
+				reactions: [],
+			});
+		const res = computeAcceptSuggestion(doc, "c9", "o1", "me", "t");
+		expect(res.isErr()).toBe(true);
+		expect(res.isErr() && res.error).toMatch(/overlaps/);
+		// Rejecting stays safe: it only unwraps o1's own markers.
+		const out = applyChanges(doc, computeRejectSuggestion(doc, "c9", "o1", "me", "t").unwrap());
+		expect(out).toContain("A <!--c:c9-->quick brown<!--/c:c9--> fox jumps.");
 	});
 
 	it("errs when the suggestion or comment is unknown", () => {

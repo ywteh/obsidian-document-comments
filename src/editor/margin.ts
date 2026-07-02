@@ -2,7 +2,7 @@ import { Notice, setIcon } from "obsidian";
 import { Result } from "better-result";
 import { EditorView, PluginValue, ViewPlugin } from "@codemirror/view";
 import { ParsedComment } from "../format/types";
-import { anchorRange, isAnchored } from "../format/parse";
+import { anchorRange, isAnchored, isFileComment } from "../format/parse";
 import { commentField } from "./state";
 import { commentConfig } from "./config";
 import { clearDraft, draftField } from "./draft";
@@ -187,7 +187,7 @@ class MarginView implements PluginValue {
 		const title = this.titleEl();
 		if (!title) return;
 		const all = this.view.state.field(commentField, false)?.comments ?? [];
-		const marked = all.some((c) => !!c.body && !isAnchored(c) && c.status !== "resolved");
+		const marked = all.some((c) => isFileComment(c) && c.status !== "resolved");
 		title.classList.toggle("dc-file-commented", marked);
 	}
 
@@ -342,11 +342,12 @@ class MarginView implements PluginValue {
 		}
 	}
 
-	/** File-level comments (body, no anchor span) light the note's inline title
-	 *  instead of an in-text highlight — the title is their "anchor". */
+	/** File-level comments (body, no anchor span, no quote) light the note's inline
+	 *  title instead of an in-text highlight — the title is their "anchor". Orphans
+	 *  (quote but lost markers) are NOT file-level: they get a warning banner. */
 	private isFileLevel(id: string): boolean {
 		const c = this.view.state.field(commentField, false)?.comments.find((x) => x.id === id);
-		return !!c && !!c.body && !isAnchored(c);
+		return !!c && isFileComment(c);
 	}
 
 	/** The note's inline title (inside .cm-sizer in Live Preview), if shown. */

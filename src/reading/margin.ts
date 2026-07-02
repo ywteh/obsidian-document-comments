@@ -1,7 +1,7 @@
 import { App, MarkdownView, Notice, setIcon } from "obsidian";
 import { Result } from "better-result";
 import { ParsedComment } from "../format/types";
-import { existingIds, isAnchored, parseComments } from "../format/parse";
+import { existingIds, isFileComment, parseComments } from "../format/parse";
 import { generateId } from "../format/ids";
 import { Card, CardCallbacks, cardSignature } from "../ui/card";
 import {
@@ -111,14 +111,14 @@ class ReadingMargin {
 			return; // file vanished or unreadable — keep the last render
 		}
 		const all = parseComments(data).filter((c) => c.body);
-		this.fileLevelIds = new Set(all.filter((c) => !isAnchored(c)).map((c) => c.id));
+		this.fileLevelIds = new Set(all.filter((c) => isFileComment(c)).map((c) => c.id));
 		// Resting title mark: the whole-file counterpart of the span's resting amber.
 		// Keyed off the full parse so it persists while the sidebar hosts the cards.
 		const title = this.readingView.querySelector(".inline-title");
 		if (title instanceof HTMLElement) {
 			title.classList.toggle(
 				"dc-file-commented",
-				all.some((c) => !isAnchored(c) && c.status !== "resolved"),
+				all.some((c) => isFileComment(c) && c.status !== "resolved"),
 			);
 		}
 		// Sidebar open → inline cards step aside (the panel lists them instead).

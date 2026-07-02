@@ -34,6 +34,9 @@ export const parseComments = (doc: string): ParsedComment[] => {
 	const closes = new Map<string, TextRange>();
 	const editOpens = new Map<string, TextRange>();
 	const editCloses = new Map<string, TextRange>();
+	// Every marker with its owner ("c:ID" / "e:ID") — the overlap check scans this
+	// for foreign markers caught inside a suggestion's replace range.
+	const markers: Array<{ owner: string; range: TextRange }> = [];
 	const bodies = new Map<string, { range: TextRange; data: CommentData }>();
 	const order: string[] = [];
 	const seen = new Set<string>();
@@ -49,14 +52,18 @@ export const parseComments = (doc: string): ParsedComment[] => {
 	OPEN_RE.lastIndex = 0;
 	while ((m = OPEN_RE.exec(doc))) {
 		if (masked(m.index)) continue;
-		if (!opens.has(m[1])) opens.set(m[1], { from: m.index, to: m.index + m[0].length });
+		const range = { from: m.index, to: m.index + m[0].length };
+		if (!opens.has(m[1])) opens.set(m[1], range);
+		markers.push({ owner: `c:${m[1]}`, range });
 		track(m[1]);
 	}
 
 	CLOSE_RE.lastIndex = 0;
 	while ((m = CLOSE_RE.exec(doc))) {
 		if (masked(m.index)) continue;
-		if (!closes.has(m[1])) closes.set(m[1], { from: m.index, to: m.index + m[0].length });
+		const range = { from: m.index, to: m.index + m[0].length };
+		if (!closes.has(m[1])) closes.set(m[1], range);
+		markers.push({ owner: `c:${m[1]}`, range });
 		track(m[1]);
 	}
 
@@ -65,13 +72,17 @@ export const parseComments = (doc: string): ParsedComment[] => {
 	EDIT_OPEN_RE.lastIndex = 0;
 	while ((m = EDIT_OPEN_RE.exec(doc))) {
 		if (masked(m.index)) continue;
-		if (!editOpens.has(m[1])) editOpens.set(m[1], { from: m.index, to: m.index + m[0].length });
+		const range = { from: m.index, to: m.index + m[0].length };
+		if (!editOpens.has(m[1])) editOpens.set(m[1], range);
+		markers.push({ owner: `e:${m[1]}`, range });
 	}
 
 	EDIT_CLOSE_RE.lastIndex = 0;
 	while ((m = EDIT_CLOSE_RE.exec(doc))) {
 		if (masked(m.index)) continue;
-		if (!editCloses.has(m[1])) editCloses.set(m[1], { from: m.index, to: m.index + m[0].length });
+		const range = { from: m.index, to: m.index + m[0].length };
+		if (!editCloses.has(m[1])) editCloses.set(m[1], range);
+		markers.push({ owner: `e:${m[1]}`, range });
 	}
 
 	BODY_RE.lastIndex = 0;
@@ -95,10 +106,20 @@ export const parseComments = (doc: string): ParsedComment[] => {
 		const open = editOpens.get(s.editId) ?? null;
 		const close = editCloses.get(s.editId) ?? null;
 		let stale = false;
-		if (open && close && open.to <= close.from && s.was !== undefined) {
-			stale = normalizeQuote(doc.slice(open.to, close.from)) !== normalizeQuote(s.was);
+		let conflict = false;
+		if (open && close && open.to <= close.from) {
+			if (s.was !== undefined) {
+				stale = normalizeQuote(doc.slice(open.to, close.from)) !== normalizeQuote(s.was);
+			}
+			// Accepting replaces [open.from, close.to] wholesale. Any foreign marker in
+			// that span — a partially-overlapping anchor or one nested inside the edit
+			// target — would be destroyed by the replacement, so flag it (§10 phase 6:
+			// flag, don't clobber). Full containment the other way round is fine.
+			conflict = markers.some(
+				(mk) => mk.owner !== `e:${s.editId}` && mk.range.from < close.to && mk.range.to > open.from,
+			);
 		}
-		return { ...s, open, close, stale };
+		return { ...s, open, close, stale, conflict };
 	};
 
 	const result: ParsedComment[] = [];
@@ -136,9 +157,18 @@ export const anchorRange = (c: ParsedComment): TextRange | null => {
 	return isAnchored(c) ? { from: c.open!.to, to: c.close!.from } : null;
 };
 
-/** Has content (a body) but is not properly anchored — show in the unanchored list. */
+/** A deliberate whole-file comment: a body with no anchor AND no `quote:` — it was
+ *  never attached to text. The UI hangs these off the note title. */
+export const isFileComment = (c: ParsedComment): boolean => {
+	return !!c.body && !isAnchored(c) && c.quote === undefined;
+};
+
+/** A comment that LOST its anchor: it has a body and a `quote:` snapshot of the text
+ *  it used to sit on, but the markers are gone/broken. Distinct from a file comment —
+ *  surface it with a warning (and the quote, for manual re-anchoring), not as a
+ *  note-wide banner. */
 export const isOrphan = (c: ParsedComment): boolean => {
-	return !!c.body && !isAnchored(c);
+	return !!c.body && !isAnchored(c) && c.quote !== undefined;
 };
 
 /** A suggestion is anchored when both `e:` markers are present and ordered. */

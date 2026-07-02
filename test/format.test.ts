@@ -4,6 +4,7 @@ import {
 	anchorRange,
 	isAnchored,
 	isOrphan,
+	isFileComment,
 	existingIds,
 	editTextRange,
 	isEditAnchored,
@@ -53,11 +54,16 @@ describe("parseComments", () => {
 		expect(parseComments(doc)[0].status).toBe("resolved");
 	});
 
-	it("detects an orphan (body without anchor markers)", () => {
-		const doc = "Some text with no markers.\n<!--co:zz9 status:open\nme: dangling\n-->";
-		const c = parseComments(doc)[0];
-		expect(isAnchored(c)).toBe(false);
-		expect(isOrphan(c)).toBe(true);
+	it("distinguishes an orphan (lost anchor, has quote) from a file comment (never anchored)", () => {
+		// A quote: means it USED to sit on text — the markers are gone, so it's orphaned.
+		const orphan = parseComments('X.\n<!--co:zz9 status:open quote:"gone text"\nme: dangling\n-->')[0];
+		expect(isAnchored(orphan)).toBe(false);
+		expect(isOrphan(orphan)).toBe(true);
+		expect(isFileComment(orphan)).toBe(false);
+		// No quote: a deliberate whole-file comment, not an orphan.
+		const fileLevel = parseComments("X.\n<!--co:ff1 status:open\nme: about this note\n-->")[0];
+		expect(isOrphan(fileLevel)).toBe(false);
+		expect(isFileComment(fileLevel)).toBe(true);
 	});
 
 	it("handles multiple and overlapping comments", () => {
@@ -258,6 +264,40 @@ describe("suggestion staleness", () => {
 	it("is not stale when there are no markers to compare against", () => {
 		const doc = '<!--co:c1 status:open\n~ @gone was:"Friday" state:proposed -> "x"\n-->';
 		expect(parseComments(doc)[0].suggestions[0].stale).toBe(false);
+	});
+});
+
+describe("suggestion overlap conflicts", () => {
+	const suggestion = (id: string, editId: string) =>
+		`<!--co:${id} status:open\n~ @${editId} state:proposed -> "x"\n-->`;
+
+	it("is clean for an edit nested inside its comment's own anchor", () => {
+		const doc = "A <!--c:c1-->quick <!--e:e1-->brown<!--/e:e1--> fox<!--/c:c1-->.\n" + suggestion("c1", "e1");
+		expect(parseComments(doc)[0].suggestions[0].conflict).toBe(false);
+	});
+
+	it("flags an edit that straddles an anchor boundary (partial overlap)", () => {
+		const doc = "A <!--c:c1-->quick <!--e:e1-->brown<!--/c:c1--> fox<!--/e:e1-->.\n" + suggestion("c1", "e1");
+		expect(parseComments(doc)[0].suggestions[0].conflict).toBe(true);
+	});
+
+	it("flags an edit with another comment's anchor nested fully inside it", () => {
+		const doc =
+			"A <!--e:e1-->quick <!--c:c2-->brown<!--/c:c2--> fox<!--/e:e1-->.\n" +
+			suggestion("c1", "e1") +
+			'\n<!--co:c2 status:open quote:"brown"\nme: hi\n-->';
+		const c1 = parseComments(doc).find((c) => c.id === "c1")!;
+		expect(c1.suggestions[0].conflict).toBe(true);
+	});
+
+	it("flags an edit containing another suggestion's edit markers", () => {
+		const doc =
+			"A <!--e:e1-->quick <!--e:e2-->brown<!--/e:e2--> fox<!--/e:e1-->.\n" +
+			`<!--co:c1 status:open\n~ @e1 state:proposed -> "x"\n~ @e2 state:proposed -> "y"\n-->`;
+		const [c] = parseComments(doc);
+		expect(c.suggestions.find((s) => s.editId === "e1")?.conflict).toBe(true);
+		// The inner edit is fine: accepting it destroys nothing outside itself.
+		expect(c.suggestions.find((s) => s.editId === "e2")?.conflict).toBe(false);
 	});
 });
 

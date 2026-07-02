@@ -48,6 +48,10 @@ export type ParsedSuggestion = Suggestion & {
 	 *  edited the prose since the suggestion was made. A hint only: accepting still
 	 *  replaces whatever currently sits between the markers. */
 	stale: boolean;
+	/** True when another comment's or edit's marker sits inside this suggestion's
+	 *  replace range — accepting would destroy that marker (partial overlap / nested
+	 *  anchor). Accept is blocked; reject stays safe (it only unwraps own markers). */
+	conflict: boolean;
 };
 
 export type TextRange = {

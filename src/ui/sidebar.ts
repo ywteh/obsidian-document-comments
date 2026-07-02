@@ -2,7 +2,7 @@ import { App, Debouncer, ItemView, MarkdownView, Notice, TFile, WorkspaceLeaf, d
 import { Result } from "better-result";
 import { EditorView } from "@codemirror/view";
 import { ParsedComment } from "../format/types";
-import { anchorRange, isAnchored, parseComments } from "../format/parse";
+import { anchorRange, isFileComment, parseComments } from "../format/parse";
 import { Card, CardCallbacks, cardSignature } from "./card";
 import {
 	Change,
@@ -206,7 +206,7 @@ export class CommentsSidebarView extends ItemView {
 		}
 
 		const all = parseComments(data).filter((c) => c.body);
-		this.fileLevelIds = new Set(all.filter((c) => !isAnchored(c)).map((c) => c.id));
+		this.fileLevelIds = new Set(all.filter((c) => isFileComment(c)).map((c) => c.id));
 		const open = all.filter((c) => c.status !== "resolved");
 		const resolved = all.filter((c) => c.status === "resolved");
 		const picked = this.filter === "open" ? open : this.filter === "resolved" ? resolved : all;

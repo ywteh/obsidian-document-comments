@@ -502,11 +502,29 @@ body {
 .dc-suggestion.is-stale {
 	border-left-color: var(--text-warning, hsl(40, 90%, 50%));
 }
+/* Another anchor's marker sits inside this edit's range — accept is withheld. */
+.dc-suggestion.is-conflict {
+	border-left-color: var(--text-error, hsl(0, 70%, 55%));
+}
 .dc-suggestion__stale {
 	flex-basis: 100%;
 	order: -1;
 	font-size: var(--font-smaller);
 	color: var(--text-warning, hsl(40, 80%, 45%));
+}
+.dc-suggestion.is-conflict .dc-suggestion__stale {
+	color: var(--text-error, hsl(0, 65%, 50%));
+}
+/* Card-level warning banner (orphaned comment: anchor markers were deleted). */
+.dc-card-warn {
+	margin-bottom: 6px;
+	padding: 4px 8px;
+	border-left: 2px solid var(--text-warning, hsl(40, 90%, 50%));
+	border-radius: var(--radius-s, 6px);
+	background-color: var(--background-secondary);
+	font-size: var(--font-smaller);
+	color: var(--text-warning, hsl(40, 80%, 45%));
+	overflow-wrap: anywhere;
 }
 .dc-suggestion__diff {
 	display: flex;

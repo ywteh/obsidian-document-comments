@@ -123,6 +123,20 @@ export const computeAcceptSuggestion = (
 	if (!s) return Result.err("Suggestion not found.");
 	if (!s.open || !s.close || s.open.to > s.close.from)
 		return Result.err("Suggestion has no anchored text to replace.");
+	if (s.conflict)
+		return Result.err("This edit overlaps another comment or edit anchor — accepting would corrupt it.");
+
+	// The replace span: the old text plus both markers. A deletion (empty replacement)
+	// swallows one adjacent space so "will <e>really </e>ship" → "will ship", not
+	// "will  ship" — and no dangling space is left at a line edge.
+	let from = s.open.from;
+	let to = s.close.to;
+	if (s.replacement === "") {
+		const before = from > 0 ? doc[from - 1] : "\n";
+		const after = to < doc.length ? doc[to] : "\n";
+		if (before === " " && (after === " " || after === "\n")) from -= 1;
+		else if (before === "\n" && after === " ") to += 1;
+	}
 
 	const was = s.was ?? doc.slice(s.open.to, s.close.from);
 	const note: ThreadEntry = {
@@ -132,15 +146,16 @@ export const computeAcceptSuggestion = (
 	};
 	// Accepting changes the anchored text, so refresh the redundant `quote:` snapshot
 	// from the post-accept anchor (markers stripped, in case another edit still nests).
+	// Only when the edit span actually sits inside the anchor — a standalone `e:`
+	// elsewhere in the note doesn't change what this comment points at.
 	const body = resolvedBody(c, editId, note);
-	if (c.open && c.close && c.open.to <= c.close.from) {
-		const anchored = doc.slice(c.open.to, s.open.from) + s.replacement + doc.slice(s.close.to, c.close.from);
+	if (c.open && c.close && c.open.to <= c.close.from && from >= c.open.to && to <= c.close.from) {
+		const anchored = doc.slice(c.open.to, from) + s.replacement + doc.slice(to, c.close.from);
 		const quote = anchored.replace(/<!--\/?[ce]:[A-Za-z0-9]+-->/g, "").trim();
 		body.quote = quote || undefined;
 	}
 	return Result.ok([
-		// One span: the old text plus both markers → the replacement (markers unwrapped).
-		{ from: s.open.from, to: s.close.to, insert: s.replacement },
+		{ from, to, insert: s.replacement },
 		{ from: c.body.from, to: c.body.to, insert: serializeBody(id, body) },
 	]);
 };
