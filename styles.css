@@ -109,6 +109,14 @@ body {
 .doc-comment-edit-span:hover {
 	background-color: var(--dc-edit-bg);
 }
+/* Hovering ONE suggestion row in a card: that edit's span alone glows harder than
+   the thread-wide .is-active wash — solid underline plus a ring. */
+.doc-comment-edit-span.is-edit-active {
+	background-color: var(--dc-edit-bg-active);
+	border-bottom-style: solid;
+	box-shadow: 0 0 0 2px var(--dc-edit-bg-active);
+	border-radius: 2px;
+}
 /* Follow the master toggle and the hide-resolved toggle, same as the anchor span. */
 .cm-editor:not(.dc-highlights) .doc-comment-edit-span,
 .markdown-reading-view:not(.dc-highlights) .doc-comment-edit-span,

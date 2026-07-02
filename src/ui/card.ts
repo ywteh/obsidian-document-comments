@@ -24,6 +24,10 @@ export type CardCallbacks = {
 	editEntry: (id: string, index: number, text: string) => void;
 	deleteEntry: (id: string, index: number) => void;
 	toggleReaction: (id: string, emoji: string) => void;
+	/** Hovering one suggestion row: light just THAT edit's sub-span (stronger than
+	 *  the whole-thread wash the card hover applies). Editor views only — reading
+	 *  view doesn't render edit sub-spans. */
+	onHoverEdit?: (id: string, editId: string, active: boolean) => void;
 	/** Apply a suggested edit (replace within its `e:` markers) and drop the `~` line. */
 	acceptSuggestion: (id: string, editId: string) => void;
 	/** Discard a suggested edit (unwrap its markers, prose untouched) and drop the `~` line. */
@@ -333,6 +337,10 @@ export class Card {
 			row.toggleClass("is-orphan", !anchored);
 			row.toggleClass("is-stale", s.stale);
 			row.toggleClass("is-conflict", s.conflict);
+			if (anchored && this.cb.onHoverEdit) {
+				row.addEventListener("mouseenter", () => this.cb.onHoverEdit?.(this.id, s.editId, true));
+				row.addEventListener("mouseleave", () => this.cb.onHoverEdit?.(this.id, s.editId, false));
+			}
 
 			// Another anchor's marker sits inside this edit's replace range — accepting
 			// would destroy it, so Accept is withheld (reject stays safe).

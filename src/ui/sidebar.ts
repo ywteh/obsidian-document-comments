@@ -64,6 +64,7 @@ export class CommentsSidebarView extends ItemView {
 		this.cb = {
 			getAuthor: () => deps.getAuthor(),
 			onHover: (id, active) => this.markDocHighlight(id, active),
+			onHoverEdit: (id, editId, active) => this.markDocEditHighlight(id, editId, active),
 			onClickAnchor: (id) => this.revealAnchor(id),
 			onResize: () => {
 				/* the panel uses normal flow — cards reflow on their own */
@@ -360,6 +361,17 @@ export class CommentsSidebarView extends ItemView {
 		view.containerEl
 			.querySelectorAll(`.doc-comment-span[data-cid="${cid}"], .doc-comment-edit-span[data-cid="${cid}"]`)
 			.forEach((s) => s.classList.toggle("is-active", active));
+	}
+
+	/** Hovering one suggestion row lights just that edit's sub-span in the note.
+	 *  Editor views only — reading view doesn't render edit sub-spans (no-op there). */
+	private markDocEditHighlight(id: string, editId: string, active: boolean): void {
+		const file = this.file;
+		if (!file) return;
+		const view = this.markdownViewForFile(file);
+		if (!view) return;
+		const sel = `.doc-comment-edit-span[data-cid="${cssEscape(id)}"][data-eid="${cssEscape(editId)}"]`;
+		view.containerEl.querySelectorAll(sel).forEach((s) => s.classList.toggle("is-edit-active", active));
 	}
 
 	private flash(span: HTMLElement): void {

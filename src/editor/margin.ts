@@ -70,6 +70,7 @@ class MarginView implements PluginValue {
 		this.cb = {
 			getAuthor: () => view.state.facet(commentConfig).author(),
 			onHover: (id, active) => this.setActive(active ? id : null),
+			onHoverEdit: (id, editId, active) => this.markEditHighlight(id, editId, active),
 			onClickAnchor: (id) => this.flashAnchor(id),
 			onResize: () => this.reposition(),
 			animateLayout: () => this.animateLayout(),
@@ -354,6 +355,12 @@ class MarginView implements PluginValue {
 	private titleEl(): HTMLElement | null {
 		const el = this.view.dom.querySelector(".inline-title");
 		return el instanceof HTMLElement ? el : null;
+	}
+
+	/** Hovering one suggestion row lights just that edit's sub-span. */
+	private markEditHighlight(id: string, editId: string, active: boolean): void {
+		const sel = `.doc-comment-edit-span[data-cid="${cssEscape(id)}"][data-eid="${cssEscape(editId)}"]`;
+		this.view.contentDOM.querySelectorAll(sel).forEach((s) => s.classList.toggle("is-edit-active", active));
 	}
 
 	private markHighlight(id: string, active: boolean): void {
