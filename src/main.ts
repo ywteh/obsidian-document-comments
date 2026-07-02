@@ -5,6 +5,7 @@ import { commentField } from "./editor/state";
 import { marginPlugin } from "./editor/margin";
 import { commentConfig } from "./editor/config";
 import { editorLayoutField } from "./editor/layout";
+import { markerDeleteGuard } from "./editor/marker-guard";
 import { draftField, setDraft } from "./editor/draft";
 import { addComment, insertCommentInFile, insertFileCommentInFile } from "./editor/commands";
 import { findSectionRange, highlightPostProcessor } from "./reading/highlight";
@@ -26,6 +27,9 @@ export default class DocCommentsPlugin extends Plugin {
 
 		this.registerEditorExtension([
 			commentField,
+			// Backspace/Delete at an anchor edge eats the visible character beyond the
+			// hidden marker instead of the marker itself (which orphaned the comment).
+			markerDeleteGuard,
 			draftField,
 			commentConfig.of({
 				app: this.app,
