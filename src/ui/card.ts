@@ -49,11 +49,6 @@ export type CardView = {
 	/** Collapse a tall card to a "Show more" preview. Margin only — the sidebar
 	 *  scrolls its list, so sidebar cards stay full height. */
 	collapsible?: boolean;
-	/** The element whose height means "the screen" for the too-tall check. Defaults
-	 *  to the card's parent — right for the margin column (which spans the editor),
-	 *  wrong for a content-sized host like the mobile popover, where the parent is
-	 *  exactly as tall as the card and EVERY thread would measure too-tall. */
-	viewport?: () => HTMLElement | null;
 };
 
 /** A single margin comment card with the full Notion-style interaction set. */
@@ -232,8 +227,7 @@ export class Card {
 		if (!this.threadEl || !this.view.collapsible) return;
 		const content = this.threadEl.offsetHeight;
 		const overflows = content > CLAMP_HEIGHT;
-		const viewportEl = this.view.viewport?.() ?? this.el.parentElement;
-		const viewport = viewportEl?.clientHeight ?? 0;
+		const viewport = this.el.parentElement?.clientHeight ?? 0;
 		const tooTall = viewport > 0 && content > viewport - 24;
 		if (overflows === this.overflows && tooTall === this.tooTall) return;
 		this.overflows = overflows;

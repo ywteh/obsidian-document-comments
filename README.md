@@ -21,7 +21,7 @@ This is a fork of [kylemcd/obsidian-document-comments](https://github.com/kylemc
 - **Inline composer.** Select text → command or right-click → a draft card opens in the margin (no modal). On mobile, a small dialog takes its place.
 - **"All discussions" sidebar** — a panel listing the active note's comments with **Open / Resolved / All** filter tabs. The sidebar and the inline cards are alternatives: opening one turns the other off (the in-text highlights stay while either is visible), and closing the sidebar collapses its dock.
 - **Toggle comments** on/off (also hides the text highlights), and **hide resolved** comments by default.
-- **Mobile.** On phones and tablets the floating margin is turned off (there's no room for it): the in-text **highlights** still mark commented text, and you read, reply, and resolve through the **sidebar** panel — new comments are composed in a quick dialog. It's the same inline storage, so a note's comments are identical on desktop and mobile.
+- **Mobile.** On phones and tablets the floating margin is turned off (there's no room for it): the in-text **highlights** still mark commented text, and **tapping a highlighted anchor opens the sidebar at that thread** — reading, replying, resolving, and accept/reject all happen there. New comments are composed in a quick dialog. It's the same inline storage, so a note's comments are identical on desktop and mobile.
 
 ## How comments are stored
 

@@ -3,7 +3,7 @@ import { Result } from "better-result";
 import { EditorView } from "@codemirror/view";
 import { commentField } from "./editor/state";
 import { marginPlugin } from "./editor/margin";
-import { popoverPlugin } from "./editor/popover";
+import { anchorTapOpensSidebar } from "./editor/anchor-tap";
 import { commentConfig } from "./editor/config";
 import { editorLayoutField } from "./editor/layout";
 import { markerDeleteGuard } from "./editor/marker-guard";
@@ -47,10 +47,10 @@ export default class DocCommentsPlugin extends Plugin {
 			editorLayoutField,
 			// The floating margin column needs horizontal room mobile doesn't have, so
 			// there we skip it entirely — comments live in the sidebar, highlights stay,
-			// and new comments are composed in a modal (see startAddComment). In its
-			// place, mobile gets the tap-to-open popover: tap an anchored span → its
-			// thread floats just below the anchor; tap elsewhere → it closes.
-			...(Platform.isMobile ? [popoverPlugin] : [marginPlugin]),
+			// and new comments are composed in a modal (see startAddComment). Tapping
+			// an anchored span opens the sidebar at that thread instead (a floating
+			// card was tried and fought iOS's built-in text callout).
+			...(Platform.isMobile ? [anchorTapOpensSidebar] : [marginPlugin]),
 		]);
 
 		// Reading view: a separate render path. Highlights come from a post-processor;
