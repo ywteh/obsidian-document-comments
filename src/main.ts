@@ -424,7 +424,9 @@ export default class DocCommentsPlugin extends Plugin {
 		// The sidebar takes over from the inline cards: opening it flips the master
 		// toggle OFF (not merely suppresses the column), so closing the panel later
 		// doesn't pop the cards back. "Toggle document comments" brings them back.
-		if (open && this.settings.showComments) {
+		// Desktop only: on mobile there ARE no inline cards to take over from —
+		// flipping the toggle there just silently killed the text highlights.
+		if (open && this.settings.showComments && !Platform.isMobile) {
 			this.settings.showComments = false;
 			void this.saveSettings();
 			this.updateRibbon();

@@ -150,7 +150,14 @@ class PopoverView implements PluginValue {
 
 	private cardView(): CardView {
 		const cfg = this.view.state.facet(commentConfig);
-		return { app: cfg.app, sourcePath: () => cfg.app?.workspace.getActiveFile()?.path ?? "", collapsible: true };
+		return {
+			app: cfg.app,
+			sourcePath: () => cfg.app?.workspace.getActiveFile()?.path ?? "",
+			collapsible: true,
+			// The popover is content-sized, so "too tall" must be judged against the
+			// editor's scroll viewport, not the popover itself.
+			viewport: () => this.view.scrollDOM,
+		};
 	}
 
 	private callbacks(): CardCallbacks {
@@ -161,6 +168,7 @@ class PopoverView implements PluginValue {
 			onHover: () => {},
 			onClickAnchor: (id) => this.flashAnchor(id),
 			onResize: () => this.reposition(),
+			revealComposer: () => this.revealComposer(),
 			reply: (id, text) => notifyErr(appendReply(view, id, text, author())),
 			setResolved: (id, resolved) => notifyErr(setResolved(view, id, resolved)),
 			remove: (id) => notifyErr(deleteComment(view, id)),
@@ -174,6 +182,25 @@ class PopoverView implements PluginValue {
 				view.state.facet(commentConfig).openInSidebar?.(id);
 			},
 		};
+	}
+
+	/** Scroll the editor the minimum needed so a just-opened reply composer is fully
+	 *  visible (the popover tracks its anchor, so scrolling the doc carries it along). */
+	private revealComposer(): void {
+		this.view.requestMeasure({
+			read: () => {
+				const box = this.el?.querySelector(".dc-field--composer");
+				if (!(box instanceof HTMLElement)) return 0;
+				const c = box.getBoundingClientRect();
+				const s = this.view.scrollDOM.getBoundingClientRect();
+				if (c.bottom > s.bottom) return c.bottom - s.bottom + 12;
+				if (c.top < s.top) return c.top - s.top - 12;
+				return 0;
+			},
+			write: (delta) => {
+				if (delta) this.view.scrollDOM.scrollTop += delta;
+			},
+		});
 	}
 
 	private flashAnchor(id: string): void {
