@@ -5,7 +5,7 @@ import { anchorRange } from "../format/parse";
 import { ParsedComment } from "../format/types";
 import { commentField } from "./state";
 import { commentConfig } from "./config";
-import { Card, CardCallbacks, CardView } from "../ui/card";
+import { Card, CardCallbacks, CardView, cardSignature } from "../ui/card";
 import {
 	acceptSuggestion,
 	appendReply,
@@ -45,7 +45,12 @@ class PopoverView implements PluginValue {
 			this.close(); // deleted under us
 			return;
 		}
-		this.card?.update(c);
+		// Re-render ONLY when the content actually changed (same signature diff as
+		// the margin). update() also fires for geometry changes — e.g. the mobile
+		// keyboard resizing the viewport right after the reply field is tapped —
+		// and an unconditional re-render would rebuild the DOM under the focused
+		// textarea, blurring it and dismissing the keyboard.
+		if (this.card && this.card.signature !== cardSignature(c)) this.card.update(c);
 		this.reposition();
 	}
 

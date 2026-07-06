@@ -75,6 +75,22 @@ describe("mobile thread popover", () => {
 		view.destroy();
 	});
 
+	it("keeps the open card's DOM across content-neutral updates (focus survives)", () => {
+		const view = open();
+		tapSpan(view);
+		// Open the card (reveals the composer) the way a tap does.
+		view.dom
+			.querySelector(".dc-popover .doc-comment-card")
+			?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+		const ta = view.dom.querySelector(".dc-popover textarea");
+		expect(ta).toBeTruthy();
+		// A selection-only update (what a keyboard-resize/geometry cycle looks like
+		// content-wise) must NOT rebuild the card — same textarea node afterwards.
+		view.dispatch({ selection: { anchor: 0 } });
+		expect(view.dom.querySelector(".dc-popover textarea")).toBe(ta);
+		view.destroy();
+	});
+
 	it("closes when the comment is deleted from the document", () => {
 		const view = open();
 		tapSpan(view);
