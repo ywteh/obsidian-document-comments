@@ -91,6 +91,16 @@ class ReadingMargin {
 			openInSidebar: (id) => deps.openInSidebar?.(id),
 		};
 
+		// The cards float outside the preview scroller, so a wheel over a card never
+		// reaches it natively — forward the deltas so the note scrolls under the pointer.
+		this.container.addEventListener(
+			"wheel",
+			(e: WheelEvent) => {
+				this.scroller.scrollTop += e.deltaY;
+				this.scroller.scrollLeft += e.deltaX;
+			},
+			{ passive: true },
+		);
 		this.scroller.addEventListener("scroll", this.scrollHandler, { passive: true });
 		this.resizeObserver = new ResizeObserver(() => this.position());
 		this.resizeObserver.observe(this.scroller);
@@ -202,10 +212,19 @@ class ReadingMargin {
 		}
 		// First card floor is -Infinity so a card whose anchor has scrolled above the
 		// viewport slides off the top instead of sticking. (No orphan column here.)
+		// An EXPANDED card is clamped into the viewport: cards overlay the view
+		// rather than adding scroll range, so near the end of the note an expanded
+		// card can extend past everything the document can scroll to.
+		const sRect = this.scroller.getBoundingClientRect();
+		const viewTop = sRect.top - topRef + CARD_GAP;
+		const viewBottom = sRect.bottom - topRef - CARD_GAP;
 		placements.sort((a, b) => a.top - b.top);
 		let cursor = Number.NEGATIVE_INFINITY;
 		for (const p of placements) {
-			const y = Math.max(p.top, cursor);
+			let y = Math.max(p.top, cursor);
+			if (p.el.classList.contains("is-open")) {
+				y = Math.max(Math.min(y, viewBottom - p.el.offsetHeight), viewTop);
+			}
 			p.el.setCssStyles({ top: `${y}px` });
 			cursor = y + p.el.offsetHeight + CARD_GAP;
 		}

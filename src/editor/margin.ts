@@ -69,6 +69,17 @@ class MarginView implements PluginValue {
 		]) {
 			this.container.addEventListener(type, stop);
 		}
+		// The cards float OUTSIDE the scroller (siblings of .cm-scroller), so a wheel
+		// over a card never reaches it natively and the document refuses to scroll
+		// under the pointer — forward the deltas.
+		this.container.addEventListener(
+			"wheel",
+			(e) => {
+				view.scrollDOM.scrollTop += e.deltaY;
+				view.scrollDOM.scrollLeft += e.deltaX;
+			},
+			{ passive: true },
+		);
 		this.cb = {
 			getAuthor: () => view.state.facet(commentConfig).author(),
 			// Hover-leave falls back to the cursor's thread (if any) rather than
@@ -314,10 +325,21 @@ class MarginView implements PluginValue {
 		// they never overlap. The first card's floor is -Infinity (unless orphans pin
 		// the top), so a card whose anchor has scrolled above the viewport keeps a
 		// negative top and slides off the top edge instead of sticking there in view.
+		// An EXPANDED card additionally gets clamped into the viewport: the cards
+		// overlay the editor rather than adding scroll range, so near the end of the
+		// note an expanded card's bottom can extend past everything the document can
+		// scroll to — pull it up until it's reachable. (A thread taller than the whole
+		// viewport takes the open-in-sidebar path instead.)
+		const scroller = this.view.scrollDOM.getBoundingClientRect();
+		const viewTop = scroller.top - editorTop + CARD_GAP;
+		const viewBottom = scroller.bottom - editorTop - CARD_GAP;
 		placements.sort((a, b) => a.top - b.top);
 		let cursor = orphanCursor > ORPHAN_TOP ? orphanCursor : Number.NEGATIVE_INFINITY;
 		for (const p of placements) {
-			const y = Math.max(p.top, cursor);
+			let y = Math.max(p.top, cursor);
+			if (p.el.classList.contains("is-open")) {
+				y = Math.max(Math.min(y, viewBottom - p.el.offsetHeight), viewTop);
+			}
 			p.el.setCssStyles({ top: `${y}px` });
 			cursor = y + p.el.offsetHeight + CARD_GAP;
 		}
