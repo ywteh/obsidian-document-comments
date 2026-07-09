@@ -2,6 +2,7 @@ import { Result } from "better-result";
 import { CommentData, ParsedComment, Reaction, ThreadEntry } from "../format/types";
 import { parseComments } from "../format/parse";
 import { closeMarker, openMarker, serializeBody } from "../format/serialize";
+import { snapSelectionToSafeBlocks } from "../format/blocks";
 
 /** A document edit in original coordinates (matches CodeMirror's ChangeSpec shape). */
 export type Change = {
@@ -18,7 +19,11 @@ export type NewCommentInput = {
 };
 
 /** Wrap [from,to] with anchor markers and append a body block after the block.
- *  Errs (rather than returning null) so the caller sees why nothing was written. */
+ *  Errs (rather than returning null) so the caller sees why nothing was written.
+ *  A selection end inside a table / code fence / math block snaps to the block's
+ *  boundary with its marker on its own line — inline markers mid-row/mid-fence
+ *  corrupt the structure (a data-loss bug in practice). `quote:` still records
+ *  the text the user actually selected. */
 export const computeAddComment = (
 	doc: string,
 	from: number,
@@ -29,6 +34,9 @@ export const computeAddComment = (
 	if (to === from) return Result.err("Select some text to comment on.");
 
 	const quote = doc.slice(from, to);
+	const snap = snapSelectionToSafeBlocks(doc, from, to);
+	if (snap.isErr()) return Result.err(snap.error);
+	const anchor = snap.value;
 	const data: CommentData = {
 		author: input.author,
 		createdAt: input.createdAt,
@@ -38,10 +46,18 @@ export const computeAddComment = (
 		suggestions: [],
 		reactions: [],
 	};
-	const paraEnd = blockEnd(doc, to);
+	const paraEnd = blockEnd(doc, anchor.to);
 	return Result.ok([
-		{ from, to: from, insert: openMarker(input.id) },
-		{ from: to, to, insert: closeMarker(input.id) },
+		{
+			from: anchor.from,
+			to: anchor.from,
+			insert: anchor.openOnOwnLine ? openMarker(input.id) + "\n" : openMarker(input.id),
+		},
+		{
+			from: anchor.to,
+			to: anchor.to,
+			insert: anchor.closeOnOwnLine ? "\n" + closeMarker(input.id) : closeMarker(input.id),
+		},
 		{ from: paraEnd, to: paraEnd, insert: "\n" + serializeBody(input.id, data) },
 	]);
 };

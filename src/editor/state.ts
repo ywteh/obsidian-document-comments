@@ -47,9 +47,17 @@ const compute = (state: EditorState): CommentFieldValue => {
 		hideRanges.push(range);
 	};
 
+	// A block-snapped anchor marker sits on its OWN line (wrapping a table/fence/
+	// math block) — hide its newline too, so no phantom blank line shows where the
+	// marker lives. Inline markers hide exactly their own range as before.
+	const addHideMarker = (r: { from: number; to: number }) => {
+		const ownLine = (r.from === 0 || text.charCodeAt(r.from - 1) === 10) && text.charCodeAt(r.to) === 10;
+		addHide(r.from, ownLine ? r.to + 1 : r.to);
+	};
+
 	for (const c of comments) {
-		if (c.open) addHide(c.open.from, c.open.to);
-		if (c.close) addHide(c.close.from, c.close.to);
+		if (c.open) addHideMarker(c.open);
+		if (c.close) addHideMarker(c.close);
 		if (c.body) {
 			// Swallow the newline before the body so its line disappears cleanly.
 			let from = c.body.from;
