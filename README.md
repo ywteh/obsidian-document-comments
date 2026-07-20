@@ -49,19 +49,19 @@ This fork is not in the Community plugins store (the upstream plugin is). Instal
 
 1. Install **BRAT** (Settings → Community plugins → Browse → search "BRAT") and enable it.
 2. Run the command **BRAT: Add a beta plugin for testing** and enter:
-   `ywteh/obsidian-document-comments`
+   `ywteh/pka-document-comments`
 3. Enable **Document Comments** in Settings → Community plugins.
 
 ### Manual
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/ywteh/obsidian-document-comments/releases).
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/ywteh/pka-document-comments/releases).
 2. Drop them in `<your-vault>/.obsidian/plugins/pka-document-comments/` (create the folder).
 3. In Obsidian, reload (or restart), then enable **Document Comments** under Settings → Community plugins.
 
 ### Build from source
 
 ```bash
-git clone https://github.com/ywteh/obsidian-document-comments
+git clone https://github.com/ywteh/pka-document-comments
 cd obsidian-document-comments
 npm install
 npm run build
@@ -107,7 +107,7 @@ npm test         # vitest
 
 The test suite includes headless integration tests that run the real editor plugins in a live CodeMirror view; `test/obsidian-mock.ts` + `test/obsidian-dom.ts` stand in for Obsidian's runtime (the npm package is types-only).
 
-**Releasing.** Pushing a version tag (e.g. `git tag 0.1.1 && git push origin 0.1.1`) runs [`.github/workflows/release.yml`](.github/workflows/release.yml): it builds the plugin, generates GitHub [artifact attestations](https://docs.github.com/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds) for the release assets, and publishes the release (and fails fast if the tag doesn't match `manifest.json`'s version). Verify a downloaded asset with `gh attestation verify main.js --repo ywteh/obsidian-document-comments`.
+**Releasing.** Pushing a version tag (e.g. `git tag 0.1.1 && git push origin 0.1.1`) runs [`.github/workflows/release.yml`](.github/workflows/release.yml): it builds the plugin, generates GitHub [artifact attestations](https://docs.github.com/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds) for the release assets, and publishes the release (and fails fast if the tag doesn't match `manifest.json`'s version). Verify a downloaded asset with `gh attestation verify main.js --repo ywteh/pka-document-comments`.
 
 ## License
 
