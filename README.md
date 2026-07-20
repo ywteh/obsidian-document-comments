@@ -55,7 +55,7 @@ This fork is not in the Community plugins store (the upstream plugin is). Instal
 ### Manual
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/ywteh/obsidian-document-comments/releases).
-2. Drop them in `<your-vault>/.obsidian/plugins/document-comments/` (create the folder).
+2. Drop them in `<your-vault>/.obsidian/plugins/pka-document-comments/` (create the folder).
 3. In Obsidian, reload (or restart), then enable **Document Comments** under Settings → Community plugins.
 
 ### Build from source
@@ -68,7 +68,7 @@ npm run build
 ```
 
 Then copy (or symlink) `main.js`, `manifest.json`, and `styles.css` into
-`<your-vault>/.obsidian/plugins/document-comments/` and enable the plugin.
+`<your-vault>/.obsidian/plugins/pka-document-comments/` and enable the plugin.
 
 ## Usage
 
