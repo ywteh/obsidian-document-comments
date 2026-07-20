@@ -4,6 +4,7 @@
 	"version": "0.1.4",
 	"minAppVersion": "1.7.2",
 	"description": "Notion-style margin comments stored inline in your markdown, so agents and other tools can read them too.",
-	"author": "Kyle McDonald",
+	"author": "Yee Whye Teh (fork of Kyle McDonald's Document Comments)",
+	"authorUrl": "https://github.com/ywteh/obsidian-document-comments",
 	"isDesktopOnly": false
 }

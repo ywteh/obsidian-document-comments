@@ -18,7 +18,10 @@
 	"keywords": [
 		"obsidian-plugin"
 	],
-	"author": "Kyle McDonald",
+	"author": "Yee Whye Teh",
+	"contributors": [
+		"Kyle McDonald (original Document Comments plugin)"
+	],
 	"license": "MIT",
 	"devDependencies": {
 		"@codemirror/state": "^6.6.0",
